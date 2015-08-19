@@ -11,10 +11,11 @@ from collections import OrderedDict
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 import os, sys, inspect
-this_dir = this_dir = os.path.realpath( os.path.abspath( os.path.split( inspect.getfile( inspect.currentframe() ))[0]))
-params_directory = os.path.realpath(os.path.abspath(os.path.join(this_dir,"../params")))
+this_dir = os.path.realpath( os.path.abspath( os.path.split( inspect.getfile( inspect.currentframe() ))[0]))
+ideanet_dir = os.path.realpath(os.path.abspath(os.path.join(this_dir,"../../../..")))
+# params_directory = os.path.realpath(os.path.abspath(os.path.join(this_dir,"../params")))
 if this_dir not in sys.path: sys.path.insert(0, this_dir)
-if params_directory not in sys.path: sys.path.insert(0, params_directory)
+if ideanet_dir not in sys.path: sys.path.insert(0, ideanet_dir)
 
 from load_params import Load_LSTM_Params
 
