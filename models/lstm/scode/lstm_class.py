@@ -297,7 +297,7 @@ class LSTM(Load_LSTM_Params):
         pred = tensor.nnet.softmax(tensor.dot(proj, tparams['U'])+tparams['b'])
 
         f_pred_prob = theano.function([x, mask], pred, name='f_pred_prob')
-        f_pred = theano.function([x, mask], pred.argmax(axis=1), name='f_pred')
+        f_pred      = theano.function([x, mask], pred.argmax(axis=1), name='f_pred')
 
         cost = -tensor.log(pred[tensor.arange(n_samples), y] + 1e-8).mean()
 
@@ -449,7 +449,7 @@ class LSTM(Load_LSTM_Params):
     #     return preds
 
     # @classmethod
-    def classify(self, sentences):
+    def classify(self, sentences, thresh=0.5):
         """This function uses f_pred to classify the user provided text.
         To accomplish this, the vector must be reorganized relative to the input DICTIONARY
         sentences is a list of strings
@@ -471,13 +471,33 @@ class LSTM(Load_LSTM_Params):
             # x, mask, y = self._prepare_data([data[t] for t in valid_index], np.array([1]*len_data), maxlen=None)
         x, mask, y = self._prepare_data(data, np.array([1]*len_data), maxlen=None)
         preds = self.f_pred(x, mask)
-            # preds.append(this_pred.sum() / len(valid_index))
-            # preds.append(this_pred)
+        preds_prob = self.f_pred_prob(x, mask)
+        # preds.append(this_pred.sum() / len(valid_index))
+        # preds.append(this_pred)
+
+        pred_fraction = (preds.sum() / float(len(preds)))
+        if pred_fraction >= thresh:
+            pred = 1
+        else:
+            pred = 0
+
+        probs_0_1 = zip(*preds_prob)
+
+        probs_0 = np.array(probs_0_1[0])
+        nan_0 = np.where(np.isnan(probs_0)==False)[0]
+        probs_0 = probs_0[nan_0]
+
+        probs_1 = np.array(probs_0_1[1])
+        nan_1 = np.where(np.isnan(probs_1)==False)[0]
+        probs_1 = probs_1[nan_1]
+
+        prob_0 = sum(probs_0)/len(probs_0)
+        prob_1 = sum(probs_1)/len(probs_1)
 
         end = time.time()
         print "Time to Tag: " + str(end - start)
 
-        return preds
+        return {'pred':pred,'prob_0_1':[prob_0,prob_1]}
 
     # @classmethod
     def pred_error(self, data, iterator, verbose=False):

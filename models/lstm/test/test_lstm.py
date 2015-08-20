@@ -3,6 +3,9 @@ This is designed to ensure the synapsify_preprocess.py produces the same output 
 the imdb_preprocess.py.
 """
 
-dataset_path = "../data/test/"
-# Would like to add a manifest one day, for now we'll use all the files
+from models.lstm.scode.lstm_class import LSTM as lstm
+LSTM = lstm()
+LSTM.load_pickle('UnTrustworthy.pkl.eae7a621-4288-11e5-a82f-6c4008accfa6')
+pred = LSTM.classify('The cow jumped over the moon.')
 
+print pred
