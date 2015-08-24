@@ -285,11 +285,13 @@ class Preprocess():
 
             # Munge training and test sets for the classes provided
             train_classes = []
-            for trc in self._trXX:
-                train_classes.append(self._trXX[trc])
+            train_unique_classes = np.unique([int(key) for key in self._trXX.keys()]).tolist()
+            for trc in train_unique_classes:
+                train_classes.append(self._trXX[str(trc)])
             test_classes = []
-            for trc in self._teXX:
-                test_classes.append(self._teXX[trc])
+            test_unique_classes = np.unique([int(key) for key in self._teXX.keys()]).tolist()
+            for trc in test_unique_classes:
+                test_classes.append(self._teXX[str(trc)])
             train = self._munge_class_freqs(sentences, train_classes)
             test  = self._munge_class_freqs(sentences, test_classes)
 

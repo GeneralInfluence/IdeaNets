@@ -469,7 +469,7 @@ class LSTM(Load_LSTM_Params):
         # for vix in xrange(len_data):
             # this_pred = self._classify_one(data, valid_index)
             # x, mask, y = self._prepare_data([data[t] for t in valid_index], np.array([1]*len_data), maxlen=None)
-        x, mask, y = self._prepare_data(data, np.array([1]*len_data), maxlen=None)
+        x, mask, y = self._prepare_data(data, np.array([0]*len_data), maxlen=None)
         preds = self.f_pred(x, mask)
         preds_prob = self.f_pred_prob(x, mask)
         # preds.append(this_pred.sum() / len(valid_index))

@@ -33,7 +33,7 @@ if  (eval {require Thread;1;}) {
 
 my $cwfile = abs_path($0);
 my($filename, $cwd, $suffix) = fileparse($cwfile);
-print STDERR "Working Directory: '$cwd' \n";
+#print STDERR "Working Directory: '$cwd' \n";
 my $mydir = join('', $cwd,"nonbreaking_prefixes");
 # my $mydir = "nonbreaking_prefixes";
 
@@ -102,7 +102,7 @@ load_prefixes($language,\%NONBREAKING_PREFIX);
 
 if (scalar(%NONBREAKING_PREFIX) eq 0)
 {
-	print STDERR "Warning: No known abbreviations for language '$language'\n";
+	#print STDERR "Warning: No known abbreviations for language '$language'\n";
 }
 
 # Load protected patterns
@@ -530,14 +530,14 @@ sub load_prefixes
     my ($language, $PREFIX_REF) = @_;
 
     my $prefixfile = "$mydir/nonbreaking_prefix.$language";
-    my $prefixfile = "nonbreaking_prefix.$language";
-    print STDERR "Prefix File: '$prefixfile' \n";
+    # my $prefixfile = "nonbreaking_prefix.$language";
+    # print STDERR "Prefix File: '$prefixfile' \n";
 
     #default back to English if we don't have a language-specific prefix file
     if (!(-e $prefixfile))
     {
         $prefixfile = "$mydir/nonbreaking_prefix.en";
-        print STDERR "WARNING: No known abbreviations for language '$language', attempting fall-back to English version...\n";
+        # print STDERR "WARNING: No known abbreviations for language '$language', attempting fall-back to English version...\n";
         die ("ERROR: No abbreviations files found in $mydir\n") unless (-e $prefixfile);
     }
 
