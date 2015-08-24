@@ -662,6 +662,10 @@ class LSTM(Load_LSTM_Params):
         return self
 
     # @classmethod
+    def load_matrix(self, filename):
+        self._load_params(filename, self._params  )
+        return self
+
     def test_model(self):
         return self
 
