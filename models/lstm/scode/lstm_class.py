@@ -437,18 +437,7 @@ class LSTM(Load_LSTM_Params):
             new_params[kk] = vv.get_value()
         return new_params
 
-    #______________________________________________________
-    # CLASSMETHODS CLASSMETHODS CLASSMETHODS CLASSMETHODS
-
-    # @classmethod
-    # def _classify_one(self, data, valid_index):
-    #     x, mask, y = self._prepare_data([data[0][t] for t in valid_index],
-    #                                      np.array(data[1])[valid_index],
-    #                                      maxlen=None)
-    #     preds = self.f_pred(x, mask)
-    #     return preds
-
-    # @classmethod
+    # def _classify_batch(self, sentences, thresh=0.5):
     def classify(self, sentences, thresh=0.5):
         """This function uses f_pred to classify the user provided text.
         To accomplish this, the vector must be reorganized relative to the input DICTIONARY
