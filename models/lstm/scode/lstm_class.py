@@ -17,9 +17,10 @@ ideanet_dir = os.path.realpath(os.path.abspath(os.path.join(this_dir,"../../../.
 if this_dir not in sys.path: sys.path.insert(0, this_dir)
 if ideanet_dir not in sys.path: sys.path.insert(0, ideanet_dir)
 
-from load_params import Load_LSTM_Params
+from synapsify_preprocess import Preprocess
+# from load_params import Load_LSTM_Params
 
-class LSTM(Load_LSTM_Params):
+class LSTM(Preprocess):
 
     def __init__(self, Object=None, params=None):
 
@@ -67,10 +68,14 @@ class LSTM(Load_LSTM_Params):
                 except:
                     print "Could not add: " + str(key) +" --> "+ str(value)
         self._params = default_params
+        self.model_options = self._params # Originally in Load_LSTM_Params
 
         ### THIS OBJECT THING NEEDS TO BE SIMPLIFIED NOW THAT EVERYTHING IS INHERITED.
         if Object==None:
-            Load_LSTM_Params.__init__(self, self._params)
+
+            # self._params = params
+            Preprocess.__init__(self, self.model_options)
+            # Load_LSTM_Params.__init__(self, self._params)
 
             self._layers = {'lstm': (self.param_init_lstm, self.lstm_layer)}
 
@@ -100,6 +105,81 @@ class LSTM(Load_LSTM_Params):
                 self._params  = self._init_params(self.model_options)
                 self._tparams = self._init_tparams(self._params)
                 self.optimizer = self.model_options['optimizer']
+
+#===================================================================================
+#===================================================================================
+
+# def __init__(self, params=None):
+#         if params==None:
+#             print "Please provide input params"
+#         else:
+#             self._params = params
+#             self.model_options = self._params
+#             Preprocess.__init__(self, self.model_options)
+
+    # @classmethod
+    def _get_dataset_file(self, dataset, default_dataset, origin):
+        '''Look for it as if it was a full path, if not, try local file,
+        if not try in the data directory.
+
+        Download dataset if it is not present
+
+        '''
+        data_dir, data_file = os.path.split(dataset)
+        if data_dir == "" and not os.path.isfile(dataset):
+            # Check if dataset is in the data directory.
+            new_path = os.path.join(
+                os.path.split(__file__)[0],
+                "..",
+                "data",
+                dataset
+            )
+            if os.path.isfile(new_path) or data_file == default_dataset:
+                dataset = new_path
+
+        if (not os.path.isfile(dataset)) and data_file == default_dataset:
+            import urllib
+            print 'Downloading data from %s' % origin
+            urllib.urlretrieve(origin, dataset)
+        return dataset
+
+    # @classmethod
+    def _load_raw_data(self, path="imdb.pkl"):
+        ''' I just want to know the file structure so I can train my own model!!'''
+
+        # Load the dataset
+        path = get_dataset_file(
+            path, "imdb.pkl",
+            "http://www.iro.umontreal.ca/~lisa/deep/data/imdb.pkl")
+
+        if path.endswith(".gz"):
+            f = gzip.open(path, 'rb')
+        else:
+            f = open(path, 'rb')
+
+        train_set = cPickle.load(f)
+        test_set = cPickle.load(f)
+
+        return train_set, test_set
+
+    # @classmethod
+    def _load_params(self, path, params):
+        pp = np.load(path)
+        for kk, vv in params.iteritems():
+            if kk not in pp:
+                raise Warning('%s is not in the archive' % kk)
+            params[kk] = pp[kk]
+
+        return params
+
+    # @classmethod
+    def update_options(self):
+        ydim = np.max(self.train_set[1])+1
+        self.model_options['ydim'] = ydim
+        return self
+
+#===================================================================================
+#===================================================================================
 
     # @classmethod
     def _init_params(self, options):

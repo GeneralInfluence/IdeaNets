@@ -21,35 +21,6 @@ class Load_LSTM_Params(Preprocess):
             Preprocess.__init__(self, self.model_options)
 
     # @classmethod
-    def JSON_minify(self, filename): # assumes it's in this directory
-
-        # f = open('../params/'+filename,'r')
-        f = open(filename,'r')
-
-        json = ''
-        eof = False
-        while eof==False:
-            line = f.readline()
-            tmp_line = line
-            if tmp_line==[]:
-                eof==True; break
-            ex = tmp_line.find('\n')
-            if ex==-1: # eof
-                ex = len(tmp_line)
-                eof = True
-            cx = tmp_line.find('#')
-            if cx==-1:
-                json += tmp_line[0:ex]
-            else:
-                json += tmp_line[0:(cx-1)]
-
-        dict = ast.literal_eval(json)
-        return dict
-
-    #==============================================================================
-    # imdb.py functions imdb.py functions imdb.py functions imdb.py functions
-    #==============================================================================
-    # @classmethod
     def _get_dataset_file(self, dataset, default_dataset, origin):
         '''Look for it as if it was a full path, if not, try local file,
         if not try in the data directory.
@@ -93,11 +64,6 @@ class Load_LSTM_Params(Preprocess):
         test_set = cPickle.load(f)
 
         return train_set, test_set
-    #==============================================================================
-    # imdb.py functions imdb.py functions imdb.py functions imdb.py functions
-    #==============================================================================
-    # From lstm.py From lstm.py From lstm.py From lstm.py From lstm.py From lstm.py
-    #==============================================================================
 
     # @classmethod
     def _load_params(self, path, params):
@@ -108,10 +74,6 @@ class Load_LSTM_Params(Preprocess):
             params[kk] = pp[kk]
 
         return params
-
-    #==============================================================================
-    # From lstm.py From lstm.py From lstm.py From lstm.py From lstm.py From lstm.py
-    #==============================================================================
 
     # @classmethod
     def update_options(self):

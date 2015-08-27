@@ -109,6 +109,12 @@ class Preprocess():
     #     return seq
 
     # @classmethod
+    def get_representative_words(self):
+        '''
+        Identify the top words that are a minimum criteria for running the IdeaNets against.
+        :return:
+        '''
+
     def _format_sentence_frequencies(self,sentences):
 
         sentences = self._tokenize(sentences)
