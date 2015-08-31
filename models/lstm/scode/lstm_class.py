@@ -693,6 +693,9 @@ class LSTM(Preprocess):
                                 estop = True
                                 break
 
+                #self.print_params()
+                self.save_matrix(eidx)
+
                 print 'Seen %d samples' % n_samples
 
                 if estop:
@@ -734,6 +737,27 @@ class LSTM(Preprocess):
     def load_matrix(self, filename):
         self._load_params(filename, self._params  )
         return self
+
+    def print_params(self):
+        for item in self._tparams:
+            print  item, self._tparams[item].eval()
+
+    def save_matrix(self, eidx):
+        ### filename: ".npz" file name
+        filename = ""
+        filename += str(eidx)
+        filename += ".npz"
+
+        ### result_path: result directory path with name "dir name"
+        dir_name = "results"
+        result_path = os.path.realpath(os.path.abspath(os.path.join(os.path.join(this_dir, "../test/"), dir_name)))
+
+        if not(os.path.isdir(result_path)):
+            os.mkdir(result_path, 0755)    ### Create a directory if no such directory
+
+        ### file_path: result file path
+        file_path = os.path.realpath(os.path.abspath(os.path.join(result_path,filename)))
+        np.savez(file_path, **self._tparams)
 
     def test_model(self):
         return self
