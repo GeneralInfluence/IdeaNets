@@ -523,7 +523,6 @@ class LSTM(Preprocess):
         To accomplish this, the vector must be reorganized relative to the input DICTIONARY
         sentences is a list of strings
         """
-        import time
 
         start = time.time()
 
