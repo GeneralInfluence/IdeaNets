@@ -23,11 +23,12 @@ import math
 # If IdeaNets are treated as a module, this addition should not be necessary.
 this_dir = os.path.split(inspect.getfile( inspect.currentframe() ))[0]
 sys.path.insert(0, this_dir)
-# cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(this_dir,"../../../../Synapsify/Synapsify/loadCleanly/"))) ### This is changed by Ruofan
+# cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(this_dir,"../../../../Preprocessing/"))) ### This is changed by Ruofan
 # if cmd_subfolder not in sys.path:
-#     sys.path.insert(0, cmd_subfolder)
+#    sys.path.insert(0, cmd_subfolder)
 
 from Munge.loadCleanly import sheets as sh
+# from loadCleanly import sheets as sh
 # import sheets as sh ### Changed by Ruofan
 from subprocess import Popen, PIPE	### Popen and PIPE should be added as we use its functions
 
@@ -100,7 +101,18 @@ class Preprocess():
 
         print np.sum(counts), ' total words ', len(keys), ' unique words'
 
+        ### Ruofan added codes here.
+        num_words = len(keys)
+        worddict = self.label_unk(worddict, num_words - 1)
+        print len(worddict.keys())
+
         return worddict
+
+    ### Ruofan added this part of code to delete the low frequency words.
+    ### worddict: dictionary of the word; We want to label the word as "unk" with its frequency index greater or equal than "freq_index" by deleting that word.
+    def label_unk(self, worddict, freq_index):
+        h1 = {i:worddict[i] for i in worddict if worddict[i] < freq_index}
+        return h1
 
     # @classmethod
     # def _format_sentence_freq(self,sentence):
