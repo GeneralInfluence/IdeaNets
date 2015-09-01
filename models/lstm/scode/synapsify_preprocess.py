@@ -19,6 +19,7 @@ Output:
 import os, sys, inspect
 import numpy as np
 import math
+import time
 
 # If IdeaNets are treated as a module, this addition should not be necessary.
 this_dir = os.path.split(inspect.getfile( inspect.currentframe() ))[0]
@@ -69,9 +70,23 @@ class Preprocess():
         tokenizer = Popen(tokenizer_cmd, stdin=PIPE, stdout=PIPE)
         tok_text, _ = tokenizer.communicate(text)
         toks = tok_text.split('\n')[:-1]
+        sentences = []
+        start = time.time()
+        count = 0
+        for sentence in toks:
+            new_sentence = []
+            words = sentence.strip().lower().split()
+            for w in words:
+                w = sh.correct_spelling(w)
+                new_sentence += [w]
+            sentences += [new_sentence]
+            print '\n'
+            count +=1
+            print count/float(len(toks))
+            print (time.time()-start)/60
         print 'Done'
 
-        return toks
+        return sentences
 
     # @classmethod
     def _build_dict(self, sentences):
@@ -80,8 +95,8 @@ class Preprocess():
 
         print 'Building dictionary..',
         wordcount = dict()
-        for ss in sentences:
-            words = ss.strip().lower().split()
+        for words in sentences:
+            # words = ss.strip().lower().split()
             for w in words:
                 if w not in wordcount:
                     wordcount[w] = 1
@@ -120,9 +135,9 @@ class Preprocess():
         sentences = self._tokenize(sentences)
 
         seqs = [None] * len(sentences)
-        for idx, ss in enumerate(sentences):
+        for idx, words in enumerate(sentences):
             # seqs[idx] = self._format_sentence_freq(ss)
-            words = ss.strip().lower().split()
+            # words = ss.strip().lower().split()
             seqs[idx] = [self._DICTIONARY[w] if w in self._DICTIONARY else 1 for w in words]
 
         return seqs
