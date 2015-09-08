@@ -120,16 +120,21 @@ class Preprocess():
         xx = np.where(np.array(wordcount)>=prctile)[0]
 
         ### Ruofan added codes here.
-        num_words = len(keys)
-        worddict = self.label_unk(worddict, xx) # num_words - 1)
-        print len(worddict.keys())
+        # num_words = len(keys)
+        # worddict = self.label_unk(worddict, xx) # num_words - 1)
+        # percent = 20   ### We can specify any percentage here.
+        # threshold = np.percentile(counts, percent) ### Get the threshold of the frequencey according to the percent.
+        # worddict = self.label_unk(worddict, wordcount, threshold)   ### Filter out the low frequency word according to the percentage.
+        # print len(worddict.keys())
 
         return worddict
 
     ### Ruofan added this part of code to delete the low frequency words.
-    ### worddict: dictionary of the word; We want to label the word as "unk" with its frequency index greater or equal than "freq_index" by deleting that word.
-    def label_unk(self, worddict, freq_index):
-        h1 = {i:worddict[i] for i in worddict if worddict[i] < freq_index}
+    ### worddict: dictionary of the word;
+    ### wordcount: hashtable on frequency of each word.
+    ### We want to label the word as "unk" with its frequency lower or equal than "threshold" by deleting that word.
+    def label_unk(self, worddict, wordcount, threshold):
+        h1 = {i:worddict[i] for i in worddict if wordcount[i] > threshold}
         return h1
 
     # @classmethod
