@@ -5,6 +5,7 @@ import theano.tensor as tensor
 import uuid
 from theano import config
 import numpy as np
+import math
 import cPickle as pkl
 import random
 from collections import OrderedDict
@@ -589,6 +590,65 @@ class LSTM(Preprocess):
         valid_err = 1. - self.numpy_floatX(valid_err) / len(data[0])
 
         return valid_err
+
+    def calc_accuracy_baseline(self,num_classes,agreement=0.8):
+        '''
+        People agree on binary classification of a document roughly 80% of the time, or at least no one really
+        argues with that statement. In leiu of a more thorough study of how often people agree on classificaiton of
+        a set of documents, here we derive the expected value of that agreement making these basic assumptions:
+            1.People choose by partitioning
+            2.Each partition has an agreement probability
+        There are of course questions to this approach, such as:
+            A.Do people really partition when they choose?
+            B.Given two choices, is the agreement propbability constant, or is it a function of the two sets? (e.g. percent intersection)
+        For this reason, the real answer must come by pulling data from questions posed and comparing to the expectation.
+
+        :param num_classes: The number of classes people are asked to agree upon
+        :type num_classes: 1x1 integer
+        :param agreement: baseline expectation for each agreement partition.
+        :type agreement: 1x1 float. Could become 1 x num_classes vector of floats
+        :return: agreement_baseline
+        '''
+
+        # There must be classes to parse, otherwise
+        # pass back an answer that works with the branches that got you here.
+        if num_classes==0:
+            return 0
+        if num_classes==1:
+            return 1
+
+        # In calculating the agreement baseline, we first separate between even and odd number of classes,
+        # as there are two binary choice branches for an odd number of classes, but even is split evenly.
+        if (num_classes%2)==0: # EVEN
+            branch_classes = int(num_classes/2)
+            # For even classes, there is only one right way to split the classes.
+            agreement_baseline = agreement * self.calc_accuracy_baseline( branch_classes,agreement)
+
+        else: # ODD
+            small_branch = int(math.floor(num_classes/2))
+            big_branch = num_classes-small_branch
+
+            # Correct Branch: Pass the agreement down the correct branches
+            small_baseline = self.calc_accuracy_baseline( small_branch,agreement)
+            big_baseline   = self.calc_accuracy_baseline( big_branch,agreement)
+
+            agreement_baseline = 0.5 * agreement * (small_baseline + big_baseline)
+
+        return agreement_baseline
+
+    # def calc_f1_score(self):
+    #     '''
+    #
+    #     :return:
+    #     '''
+    #     #
+    #     precision =
+    #
+    #     F_1 = 2* (precision * recall) / (precision + recall)
+    #
+    #     F_\beta = \frac {(1 + \beta^2) \cdot \mathrm{true\ positive} }{(1 + \beta^2) \cdot \mathrm{true\ positive} + \beta^2 \cdot \mathrm{false\ negative} + \mathrm{false\ positive}}\,.
+    #     B2 = (1+B*B)
+    #     FB = B2*TP / (B2*TP + B*B*FN + FP)
 
     # @classmethod
     def zipp(self, params):

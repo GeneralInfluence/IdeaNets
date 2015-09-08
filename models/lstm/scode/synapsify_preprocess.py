@@ -116,9 +116,12 @@ class Preprocess():
 
         print np.sum(counts), ' total words ', len(keys), ' unique words'
 
+        prctile = np.percentile(np.array(wordcount),90)
+        xx = np.where(np.array(wordcount)>=prctile)[0]
+
         ### Ruofan added codes here.
         num_words = len(keys)
-        worddict = self.label_unk(worddict, num_words - 1)
+        worddict = self.label_unk(worddict, xx) # num_words - 1)
         print len(worddict.keys())
 
         return worddict
