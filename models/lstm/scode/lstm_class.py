@@ -56,6 +56,7 @@ class LSTM(Preprocess):
             #"data_directory":"../data/test",
             "data_directory":"/home/ying/Deep_Learning/Synapsify_data",
             "data_file":"Annotated_Comments_for_Always_Discreet_1.csv",
+            #"data_file":"Annotated_Comments_for_Crest White Strips 1.csv",
             "raw_rows":None,
             "class_type":"Sentiment"
         }
@@ -182,7 +183,6 @@ class LSTM(Preprocess):
 
 #===================================================================================
 #===================================================================================
-
     # @classmethod
     def _init_params(self, options):
         """
@@ -192,9 +192,8 @@ class LSTM(Preprocess):
         # embedding
         randn = np.random.rand(options['n_words'], options['dim_proj'])
         params['Wemb'] = (0.01 * randn).astype(config.floatX) #.astype('float32')
-        params = self.get_layer(options['encoder'])[0](options,
-                                                  params) #,
-                                                  # prefix=options['encoder'])
+        #params = self.param_init_lstm(options,  params) #,# prefix=options['encoder'])  ### Ruoafan made changes here.
+
         # classifier
         params['U'] = 0.01 * np.random.randn(options['dim_proj'],
                                              options['ydim']).astype(config.floatX) #.astype('float32')
@@ -205,10 +204,23 @@ class LSTM(Preprocess):
     @staticmethod
     def _init_tparams( params):
         tparams = OrderedDict()
+        tparams['embedding'] = {}
+        tparams['output'] = {}
+        for kk, pp in params.iteritems():
+            if kk == 'Wemb':
+                tparams['embedding'][kk] = theano.shared(params[kk], name=kk)
+            else:
+                tparams['output'][kk] = theano.shared(params[kk], name=kk)
+        return tparams
+
+    '''
+    @staticmethod
+    def _init_tparams( params):
+        tparams = OrderedDict()
         for kk, pp in params.iteritems():
             tparams[kk] = theano.shared(params[kk], name=kk)
         return tparams
-
+    '''
 #=======================================================================================================================
 # MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING
 #=======================================================================================================================
@@ -228,7 +240,8 @@ class LSTM(Preprocess):
         return u.astype(config.floatX)
 
     # @classmethod
-    def param_init_lstm(self, options, params, prefix='lstm'):
+    # def param_init_lstm(self, options, params, prefix='lstm'):    #Ruofan changed the code here.
+    def param_init_lstm(self, options, params):
         """
         Init the LSTM parameter:
         :see: init_params
@@ -238,14 +251,14 @@ class LSTM(Preprocess):
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj'])], axis=1)
-        params[self._p(prefix, 'W')] = W
+        params['lstm_W'] = W
         U = np.concatenate([self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj'])], axis=1)
-        params[self._p(prefix, 'U')] = U
+        params['lstm_U'] = U
         b = np.zeros((4 * options['dim_proj'],))
-        params[self._p(prefix, 'b')] = b.astype(config.floatX)
+        params['lstm_b'] = b.astype(config.floatX)
 
         return params
 
@@ -283,6 +296,42 @@ class LSTM(Preprocess):
 
         return f_grad_shared, f_update
 
+    '''
+    # @classmethod
+    def adadelta(self, lr, tparams, grads, x, mask, y, cost):
+
+        zipped_grads = [theano.shared(p.get_value() * self.numpy_floatX(0.),
+                                      name='%s_grad' % k)
+                        for k, p in tparams.iteritems()]
+        running_up2 = [theano.shared(p.get_value() * self.numpy_floatX(0.),
+                                     name='%s_rup2' % k)
+                       for k, p in tparams.iteritems()]
+        running_grads2 = [theano.shared(p.get_value() * self.numpy_floatX(0.),
+                                        name='%s_rgrad2' % k)
+                          for k, p in tparams.iteritems()]
+
+        zgup = [(zg, g) for zg, g in zip(zipped_grads, grads)]
+        rg2up = [(rg2, 0.95 * rg2 + 0.05 * (g ** 2))
+                 for rg2, g in zip(running_grads2, grads)]
+
+        f_grad_shared = theano.function([x, mask, y], cost, updates=zgup + rg2up,
+                                        name='adadelta_f_grad_shared')
+
+        updir = [-tensor.sqrt(ru2 + 1e-6) / tensor.sqrt(rg2 + 1e-6) * zg
+                 for zg, ru2, rg2 in zip(zipped_grads,
+                                         running_up2,
+                                         running_grads2)]
+        ru2up = [(ru2, 0.95 * ru2 + 0.05 * (ud ** 2))
+                 for ru2, ud in zip(running_up2, updir)]
+        param_up = [(p, p + ud) for p, ud in zip(tparams.values(), updir)]
+
+        f_update = theano.function([lr], [], updates=ru2up + param_up,
+                                   on_unused_input='ignore',
+                                   name='adadelta_f_update')
+
+        return f_grad_shared, f_update
+    '''
+
     @staticmethod
     def dropout_layer( state_before, use_noise, trng):
         proj = tensor.switch(use_noise,
@@ -295,6 +344,7 @@ class LSTM(Preprocess):
 
     # @classmethod
     # def lstm_layer(self, tparams, state_below, options, prefix='lstm', mask=None):
+    '''
     def lstm_layer(self, state_below, mask=None):
 
         trng = RandomStreams(1234)
@@ -365,6 +415,91 @@ class LSTM(Preprocess):
             proj = self.dropout_layer(proj, use_noise, trng)
 
         return proj #rval[0]
+    '''
+
+    def lstm_tparams(self, params, layer_id):
+        self._tparams[layer_id] = {}
+        for kk, pp in params.iteritems():
+           self._tparams[layer_id][kk] = theano.shared(params[kk], name=kk)
+        return self
+
+    def lstm_layer(self, state_below, mask=None, layer_num=1):
+
+        trng = RandomStreams(1234)
+
+        # Used for dropout. DEFINED FOR EACH LAYER?
+        use_noise = theano.shared(self.numpy_floatX(0.))
+
+        self._use_noise = use_noise
+
+        ### RUofan add code here
+        layer_id = 'layer_'+str(layer_num)
+        params = OrderedDict()
+        params = self.param_init_lstm(self.model_options, params)
+        self.lstm_tparams(params, layer_id)
+        #self.print_params()
+
+        nsteps = state_below.shape[0]
+        if state_below.ndim == 3:
+            n_samples = state_below.shape[1]
+        else:
+            n_samples = 1
+
+        assert mask is not None
+
+        def _slice(_x, n, dim):
+            if _x.ndim == 3:
+                return _x[:, :, n * dim:(n + 1) * dim]
+            return _x[:, n * dim:(n + 1) * dim]
+
+        def _step(m_, x_, h_, c_):
+            # preact = tensor.dot(h_, tparams[self._p(prefix, 'U')])
+            preact = tensor.dot(h_, self._tparams[layer_id]['lstm_U'])
+            preact += x_
+            preact += self._tparams[layer_id]['lstm_b']
+            # preact += tparams[self._p(prefix, 'b')]
+
+            i = tensor.nnet.sigmoid(_slice(preact, 0, self.model_options['dim_proj']))
+            f = tensor.nnet.sigmoid(_slice(preact, 1, self.model_options['dim_proj']))
+            o = tensor.nnet.sigmoid(_slice(preact, 2, self.model_options['dim_proj']))
+            c = tensor.tanh(_slice(preact, 3, self.model_options['dim_proj']))
+
+            c = f * c_ + i * c
+            c = m_[:, None] * c + (1. - m_)[:, None] * c_
+
+            h = o * tensor.tanh(c)
+            h = m_[:, None] * h + (1. - m_)[:, None] * h_
+
+            return h, c
+
+        # state_below = (tensor.dot(state_below, tparams[self._p(prefix, 'W')]) +
+        state_below = (tensor.dot(state_below, self._tparams[layer_id]['lstm_W']) +
+                       self._tparams[layer_id]['lstm_b'])
+                       # tparams[self._p(prefix, 'b')])
+
+        dim_proj = self.model_options['dim_proj']
+        rval, updates = theano.scan(_step,
+                                    sequences=[mask, state_below],
+                                    outputs_info=[tensor.alloc(self.numpy_floatX(0.),
+                                                               n_samples,
+                                                               dim_proj),
+                                                  tensor.alloc(self.numpy_floatX(0.),
+                                                               n_samples,
+                                                               dim_proj)],
+                                    name='lstm_layers',
+                                    # name=self._p(prefix, '_layers'),
+                                    n_steps=nsteps)
+
+        proj = rval[0]
+        ### Average the results of the layer----------------------------------------
+        # if self.model_options['encoder'] == 'lstm':
+        proj = (proj * mask[:, :, None]).sum(axis=0)
+        proj = proj / mask.sum(axis=0)[:, None]
+
+        if self.model_options['use_dropout']:
+            proj = self.dropout_layer(proj, use_noise, trng)
+
+        return proj #rval[0]
 
     # @classmethod
     # def get_layer(self, name):
@@ -381,20 +516,26 @@ class LSTM(Preprocess):
         n_timesteps = x.shape[0]
         n_samples = x.shape[1]
 
-        for L in range(self.model_options['num_hidden_layers']):
-            emb = self._tparams['layer_'+str(L)]['Wemb'][x.flatten()].reshape([n_timesteps,
-                                                        n_samples,
-                                                        self.model_options['dim_proj']])
+        ### Ruofan changed this code.
+        emb = self._tparams['embedding']['Wemb'][x.flatten()].reshape([n_timesteps,
+                                                            n_samples,
+                                                            self.model_options['dim_proj']])    ### Word Embedding Matrix.
+        #emb = self._tparams['layer_'+str(L)]['Wemb'][x.flatten()].reshape([n_timesteps,
+        #                                                n_samples,
+        #                                                self.model_options['dim_proj']])    ### Word Embedding Matrix.
+        hidden_input = emb  ### Input for Hidden Layers.
 
+        for L in range(int(self.model_options['num_hidden_layers'])):
             # proj = self.get_layer(options['encoder'])[1](tparams, emb, options,
-            proj = self.lstm_layer( emb, mask=mask)
+            proj = self.lstm_layer( hidden_input, mask=mask, layer_num=L+1)
+            hidden_input = proj ### The current hidden layer is the input for the next hidden layer.
 
-        proj2 = self.lstm_layer( proj, mask=mask)
+        proj2 = proj
 
         ### END HIDDEN LAYERS
         ### START SOFTMAX NORMALIZATION
 
-        pred = tensor.nnet.softmax(tensor.dot(proj, self._tparams['U']) + self._tparams['b'])
+        pred = tensor.nnet.softmax(tensor.dot(proj2, self._tparams['output']['U']) + self._tparams['output']['b'])
 
         f_pred_prob = theano.function([x, mask], pred, name='f_pred_prob')
         f_pred      = theano.function([x, mask], pred.argmax(axis=1), name='f_pred')
@@ -438,11 +579,26 @@ class LSTM(Preprocess):
                 cost += weight_decay
                 print "cost updated with a weight decay"
 
-            grads = tensor.grad(cost, wrt=self._tparams.values())
+            ### Ruofan add codes here.
+            param_val = []
+            temp_dict = OrderedDict()
+            count = 0
+            for k, p in self._tparams.iteritems():
+                for k1, p1 in p.iteritems():
+                    param_val.append(p[k1])
+                    temp_dict[str(count)] = p[k1]
+                    count += 1
+
+
+            print param_val
+            print temp_dict
+            #grads = tensor.grad(cost, wrt=self._tparams.values())
+            grads = tensor.grad(cost, wrt=param_val)
             print "gradients set up"
 
             lr = tensor.scalar(name='lr')
-            self.f_grad_shared, self.f_update = optimizer(lr, self._tparams, grads, x, mask, y, cost)
+            #f_grad_shared, self.f_update = optimizer(lr, self._tparams, grads, x, mask, y, cost)
+            self.f_grad_shared, self.f_update = optimizer(lr, temp_dict, grads, x, mask, y, cost)
             print "Optimization functions created"
 
             self.f_cost = theano.function([x, mask, y], cost, name='f_cost')
@@ -525,6 +681,7 @@ class LSTM(Preprocess):
 
         return x, x_mask, labels	### x is the matrix with dimension of maxlen * n_samples
 
+    '''
     @staticmethod
     def unzip(zipped):
         """
@@ -533,6 +690,19 @@ class LSTM(Preprocess):
         new_params = OrderedDict()
         for kk, vv in zipped.iteritems():
             new_params[kk] = vv.get_value()
+        return new_params
+    '''
+
+    @staticmethod
+    def unzip(zipped):
+        """
+        When we pickle the model. Needed for the GPU stuff.
+        """
+        new_params = OrderedDict()
+        for kk, vv in zipped.iteritems():
+            new_params[kk] = {}
+            for kk1, vv1 in vv.iteritems():
+                new_params[kk][kk1] = vv1.get_value()
         return new_params
 
     # def _classify_batch(self, sentences, thresh=0.5):
@@ -815,8 +985,9 @@ class LSTM(Preprocess):
         return self
 
     def print_params(self):
-        for item in self._tparams:
-            print  item, self._tparams[item].eval()
+        for k, item in self._tparams.iteritems():
+            for k1, item1 in item.iteritems():
+                print  item, item1, self._tparams[item][item1].eval()
 
     def save_matrix(self, eidx):
         ### filename: ".npz" file name
