@@ -332,6 +332,22 @@ class LSTM(Preprocess):
         return f_grad_shared, f_update
     '''
 
+    ### SEAN'S NEW DROPOUT CODE FOR MULTI-LAYER LSTM
+    # This is currently designed for CPU only, for GPU implementation, see:
+    #   http://deeplearning.net/software/theano/tutorial/examples.html#other-implementations
+    def dropout_layer(self, state_before):
+
+        trng = RandomStreams(1234)
+
+        proj = tensor.switch(use_noise,
+                             (state_before *
+                              trng.binomial(state_before.shape,
+                                            p=0.5, n=1,
+                                            dtype=state_before.dtype)),
+                             state_before * 0.5)
+        return proj
+
+    '''
     @staticmethod
     def dropout_layer( state_before, use_noise, trng):
         proj = tensor.switch(use_noise,
@@ -341,6 +357,7 @@ class LSTM(Preprocess):
                                             dtype=state_before.dtype)),
                              state_before * 0.5)
         return proj
+    '''
 
     # @classmethod
     # def lstm_layer(self, tparams, state_below, options, prefix='lstm', mask=None):
@@ -425,15 +442,16 @@ class LSTM(Preprocess):
 
     def lstm_layer(self, state_below, mask=None, layer_num=1):
 
-        trng = RandomStreams(1234)
-
-        # Used for dropout. DEFINED FOR EACH LAYER?
+        # Used for dropout and shared between each hidden layer,
+        #   which allows the training functions to simply update use_noise
+        #       with use_noise.set_value(1.) and vice versa, and because
+        # use_noise is a shared variable and essentially acts like
+        # a light switch for the entire network.
         use_noise = theano.shared(self.numpy_floatX(0.))
-
-        self._use_noise = use_noise
+        self._use_noise = use_noise # shared in Theano vs shared in this class's object
 
         ### RUofan add code here
-        layer_id = 'layer_'+str(layer_num)
+        layer_id = 'layer_' + str(layer_num)
         params = OrderedDict()
         params = self.param_init_lstm(self.model_options, params)
         self.lstm_tparams(params, layer_id)
