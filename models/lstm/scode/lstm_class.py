@@ -53,12 +53,12 @@ class LSTM(Preprocess):
             "train_max":0.5,
             "train_size":1524,
             "test_size":1533,
-            #"data_directory":"../data/test",
-            "data_directory":"/home/ying/Deep_Learning/Synapsify_data",
+            "data_directory":"../../../data/",
             "data_file":"Annotated_Comments_for_Always_Discreet_1.csv",
             #"data_file":"Annotated_Comments_for_Crest White Strips 1.csv",
             "raw_rows":None,
-            "class_type":"Sentiment"
+            "class_type":"Sentiment",
+            "correct_spelling":False
         }
 
         self._del_keys = ['_layers','f_grad_shared','f_grad'] #,'train_set']
@@ -327,9 +327,14 @@ class LSTM(Preprocess):
     ### SEAN'S NEW DROPOUT CODE FOR MULTI-LAYER LSTM
     # This is currently designed for CPU only, for GPU implementation, see:
     #   http://deeplearning.net/software/theano/tutorial/examples.html#other-implementations
-    def dropout_layer(self, state_before):
+    def dropout_layer(self, state_before, use_noise, trng):
 
-        trng = RandomStreams(1234)
+        # I need this variable to be for one dimension and repeated for the others.
+
+        binomial2D = trng.binomial(state_before.shape[],
+                        p=0.5, n=1,
+                        dtype=state_before.dtype)
+        tensor.repeat( binomial2D,repeats,axis)
 
         proj = tensor.switch(use_noise,
                              (state_before *
@@ -490,8 +495,9 @@ class LSTM(Preprocess):
         #proj = (proj * mask[:, :, None]).sum(axis=0)
         #proj = proj / mask.sum(axis=0)[:, None]
 
-        #if self.model_options['use_dropout']:
-        #    proj = self.dropout_layer(proj, use_noise, trng)
+        # if self.model_options['use_dropout']:
+        #     trng = RandomStreams(1234*layer_num)
+        #     proj = self.dropout_layer(proj, use_noise, trng)
 
         return proj #rval[0]
 

@@ -74,17 +74,20 @@ class Preprocess():
         sentences = []
         start = time.time()
         count = 0
-        for sentence in toks:
-            new_sentence = []
-            words = sentence.strip().lower().split()
-            for w in words:
-                w = sh.correct_spelling(w)
-                new_sentence += [w]
-            sentences += [new_sentence]
-            print '\n'
-            count +=1
-            print count/float(len(toks))
-            print (time.time()-start)/60
+        if self._model_options['correct_spelling']:
+            for sentence in toks:
+                new_sentence = []
+                words = sentence.strip().lower().split()
+                for w in words:
+                    w = sh.correct_spelling(w)
+                    new_sentence += [w]
+                sentences += [new_sentence]
+                print '\n'
+                count +=1
+                print count/float(len(toks))
+                print (time.time()-start)/60
+        else:
+            sentences = toks
         print 'Done'
 
         return sentences
@@ -116,8 +119,8 @@ class Preprocess():
 
         print np.sum(counts), ' total words ', len(keys), ' unique words'
 
-        prctile = np.percentile(np.array(wordcount),90)
-        xx = np.where(np.array(wordcount)>=prctile)[0]
+        # prctile = np.percentile(np.array(wordcount),90)
+        # xx = np.where(np.array(wordcount)>=prctile)[0]
 
         ### Ruofan added codes here.
         # num_words = len(keys)
