@@ -331,10 +331,14 @@ class LSTM(Preprocess):
 
         # I need this variable to be for one dimension and repeated for the others.
 
-        binomial2D = trng.binomial(state_before.shape[],
+        temp = state_before[:,:,None]
+
+        bi2D = theano.function([],
+                        trng.binomial(state_before.shape[0:2],
                         p=0.5, n=1,
-                        dtype=state_before.dtype)
-        tensor.repeat( binomial2D,repeats,axis)
+                        dtype=state_before.dtype))
+
+        binomial3D = tensor.repeat( bi2D,state_before.shape[2],axis)
 
         proj = tensor.switch(use_noise,
                              (state_before *
@@ -530,6 +534,7 @@ class LSTM(Preprocess):
             proj = self.lstm_layer( hidden_input, mask=mask, layer_num=L+1)
             hidden_input = proj ### The current hidden layer is the input for the next hidden layer.
 
+        ### SEAN SPECULATION, NOT SURE IF THIS GOES HERE!!! WAS IN LSTM_LAYER!
         proj = (proj * mask[:, :, None]).sum(axis=0)
         proj = proj / mask.sum(axis=0)[:, None]
 
@@ -895,7 +900,7 @@ class LSTM(Preprocess):
 
                     # Select the random examples for this minibatch
                     y = [self.train_set[1][t] for t in train_index]
-                    x = [self.train_set[0][t]for t in train_index]
+                    x = [self.train_set[0][t] for t in train_index]
 
                     # Get the data in numpy.ndarray format
                     # This swap the axis!
