@@ -56,7 +56,8 @@ class LSTM(Preprocess):
             "data_directory":"/home/ying/Deep_Learning/Synapsify_data",
             "data_file":"Annotated_Comments_for_Always_Discreet_1.csv",
             "raw_rows":None,
-            "class_type":"Sentiment"
+            "class_type":"Sentiment",
+            "correct_spelling":False
         }
 
         self._del_keys = ['_layers','f_grad_shared','f_grad'] #,'train_set']
