@@ -595,18 +595,26 @@ class LSTM(Preprocess):
         :param_iterator: IDFK
         :rtype:
         """
+
         valid_err = 0
+        prob_err = 0
         for _, valid_index in iterator:
             x, mask, y = self._prepare_data([data[0][t] for t in valid_index],
                                       np.array(data[1])[valid_index],
                                       maxlen=None)
             preds = self.f_pred(x, mask)
-            # preds = self._classify_one(data, valid_index)
+            preds_prob = self.f_pred_prob(x, mask)
+
             targets = np.array(data[1])[valid_index]
             valid_err += (preds == targets).sum()
-        valid_err = 1. - self.numpy_floatX(valid_err) / len(data[0])
 
-        return valid_err
+            for t,tgt in enumerate(targets):
+                prob_err += preds_prob[t][tgt]
+
+        valid_err = 1. - self.numpy_floatX(valid_err) / len(data[0])
+        prob_err = 1. - self.numpy_floatX(prob_err) / len(data[0])
+
+        return valid_err, prob_err
 
     def calc_accuracy_baseline(self,num_classes,agreement=0.8):
         '''
