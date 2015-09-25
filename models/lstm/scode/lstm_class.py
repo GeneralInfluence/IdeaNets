@@ -58,10 +58,12 @@ class LSTM(Preprocess):
             #"data_file":"Annotated_Comments_for_Crest White Strips 1.csv",
             "raw_rows":None,
             "class_type":"Sentiment",
-            "correct_spelling":False
+            "correct_spelling":False,
+            "unk_threshold":0.8
         }
 
-        self._del_keys = ['_layers','f_grad_shared','f_grad'] #,'train_set']
+        # self._del_keys = ['_layers','f_grad_shared','f_grad']
+        self._del_keys = ['_layers','f_grad_shared','f_grad','train_set','test_set','_test_xx','_trXX','_teXX']
 
         if params!=None:
             #print params
@@ -71,13 +73,13 @@ class LSTM(Preprocess):
                 except:
                     print "Could not add: " + str(key) +" --> "+ str(value)
         self._params = default_params
-        self.model_options = self._params # Originally in Load_LSTM_Params
+        self._model_options = self._params # Originally in Load_LSTM_Params
 
         ### THIS OBJECT THING NEEDS TO BE SIMPLIFIED NOW THAT EVERYTHING IS INHERITED.
         if Object==None:
 
             # self._params = params
-            Preprocess.__init__(self, self.model_options)
+            Preprocess.__init__(self, self._model_options)
             # Load_LSTM_Params.__init__(self, self._params)
 
             self._layers = {'lstm': (self.param_init_lstm, self.lstm_layer)}
@@ -95,19 +97,19 @@ class LSTM(Preprocess):
                 print "Assuming object is LSTM, copying..."
                 # LSTM variables
                 self._layers = copy.deepcopy(Object._layers)
-                self.model_options = copy.deepcopy(Object.model_options)
+                self._model_options = copy.deepcopy(Object._model_options)
                 self._params  = copy.deepcopy(Object._params)
                 self._tparams = copy.deepcopy(Object._tparams) # I don't know if this will work, do Theano variables need to be recompiled?
-                self.model_options = copy.deepcopy(Object.model_options)
-                self.optimizer = self.model_options['optimizer']
+                self._model_options = copy.deepcopy(Object._model_options)
+                self.optimizer = self._model_options['optimizer']
 
             except:
                 print "Couldn't copy LSTM Object, initializing a new object."
                 self._layers = {'lstm': (self.param_init_lstm, self.lstm_layer)}
-                self.model_options = Object.model_options
-                self._params  = self._init_params(self.model_options)
+                self._model_options = Object._model_options
+                self._params  = self._init_params(self._model_options)
                 self._tparams = self._init_tparams(self._params)
-                self.optimizer = self.model_options['optimizer']
+                self.optimizer = self._model_options['optimizer']
 
 #===================================================================================
 #===================================================================================
@@ -117,8 +119,8 @@ class LSTM(Preprocess):
 #             print "Please provide input params"
 #         else:
 #             self._params = params
-#             self.model_options = self._params
-#             Preprocess.__init__(self, self.model_options)
+#             self._model_options = self._params
+#             Preprocess.__init__(self, self._model_options)
 
     # @classmethod
     def _get_dataset_file(self, dataset, default_dataset, origin):
@@ -176,7 +178,7 @@ class LSTM(Preprocess):
     # @classmethod
     def update_options(self):
         ydim = np.max(self.train_set[1])+1
-        self.model_options['ydim'] = ydim
+        self._model_options['ydim'] = ydim
         return self
 
 #===================================================================================
@@ -561,16 +563,16 @@ class LSTM(Preprocess):
 
         try:
             self.update_options()
-            self._params  = self._init_params(self.model_options)
+            self._params  = self._init_params(self._model_options)
             self._tparams = self._init_tparams(self._params)
-            self.optimizer = self.model_options['optimizer']
+            self.optimizer = self._model_options['optimizer']
         except:
             print "Need to preprocess the data first"
             self.preprocess()
             self.update_options()
-            self._params  = self._init_params(self.model_options)
+            self._params  = self._init_params(self._model_options)
             self._tparams = self._init_tparams(self._params)
-            self.optimizer = self.model_options['optimizer']
+            self.optimizer = self._model_options['optimizer']
 
         if self.optimizer=='adadelta':
 
@@ -580,7 +582,7 @@ class LSTM(Preprocess):
 
             print 'Done. Setting up Optimization Function'
 
-            decay_c = self.model_options['decay_c']
+            decay_c = self._model_options['decay_c']
             if decay_c > 0.:
                 decay_c = theano.shared(self.numpy_floatX(decay_c), name='decay_c')
                 weight_decay = 0.
@@ -712,6 +714,15 @@ class LSTM(Preprocess):
                 new_params[kk][kk1] = vv1.get_value()
         return new_params
 
+    def _classify_seqs(self,words,unk=1):
+        num_words = len(words)
+        num_unk_words = len(np.where(np.array(words)==unk)[0])
+        unk_percentage = num_unk_words / float(num_words)
+        if unk_percentage > self._model_options['unk_threshold']:
+            return False
+        else:
+            return True
+
     # def _classify_batch(self, sentences, thresh=0.5):
     def classify(self, sentences, thresh=0.5):
         """This function uses f_pred to classify the user provided text.
@@ -725,42 +736,47 @@ class LSTM(Preprocess):
         # xx,sentences = [s,sent for s,sent in enumerate(dirty_sentences): if sent!='']
 
         data = self._format_sentence_frequencies(sentences)
-        # preds = []
+
+        # Boolean T/F on whether there are sufficient dictionary entries to classify
+        #   Only used here because in training there are no missing dictionary entries.
+        # THIS CAN LIKELY BE NUMPY-FU-ED!!
+        classify_yn = [True] * len(data)
+        for ix,d in enumerate(data):
+            classify_yn[ix] = self._classify_seqs(d,unk=1)
+        # THIS CAN LIKELY BE NUMPY-FU-ED!!
+
         len_data = len(data)
-        # iterator = self.get_minibatches_idx(len_data, self.model_options['batch_size'], shuffle=True)
-        # for _, valid_index in iterator:
-        # for vix in xrange(len_data):
-            # this_pred = self._classify_one(data, valid_index)
-            # x, mask, y = self._prepare_data([data[t] for t in valid_index], np.array([1]*len_data), maxlen=None)
         x, mask, y = self._prepare_data(data, np.array([0]*len_data), maxlen=None)
-        preds = self.f_pred(x, mask)
+        preds = np.array(self.f_pred(x, mask))
         preds_prob = self.f_pred_prob(x, mask)
-        # preds.append(this_pred.sum() / len(valid_index))
-        # preds.append(this_pred)
 
-        pred_fraction = (preds.sum() / float(len(preds)))
-        if pred_fraction >= thresh:
-            pred = 1
-        else:
-            pred = 0
+        cxx = np.where(~np.array(classify_yn))[0]
+        preds[cxx] = -1
+        preds = preds.tolist()
 
-        probs_0_1 = zip(*preds_prob)
+        # pred_fraction = (preds.sum() / float(len(preds)))
+        # if pred_fraction >= thresh:
+        #     pred = 1
+        # else:
+        #     pred = 0
 
-        probs_0 = np.array(probs_0_1[0])
-        nan_0 = np.where(np.isnan(probs_0)==False)[0]
-        probs_0 = probs_0[nan_0]
-
-        probs_1 = np.array(probs_0_1[1])
-        nan_1 = np.where(np.isnan(probs_1)==False)[0]
-        probs_1 = probs_1[nan_1]
-
-        prob_0 = sum(probs_0)/len(probs_0)
-        prob_1 = sum(probs_1)/len(probs_1)
+        # probs_0_1 = zip(*preds_prob)
+        #
+        # probs_0 = np.array(probs_0_1[0])
+        # nan_0 = np.where(np.isnan(probs_0)==False)[0]
+        # probs_0 = probs_0[nan_0]
+        #
+        # probs_1 = np.array(probs_0_1[1])
+        # nan_1 = np.where(np.isnan(probs_1)==False)[0]
+        # probs_1 = probs_1[nan_1]
+        #
+        # prob_0 = sum(probs_0)/len(probs_0)
+        # prob_1 = sum(probs_1)/len(probs_1)
 
         end = time.time()
         print "Time to Tag: " + str(end - start)
 
-        return {'pred':pred,'prob_0_1':[prob_0,prob_1]}
+        return {'pred':preds,'prob_0_1':preds_prob}
 
     # @classmethod
     def pred_error(self, data, iterator, verbose=False):
@@ -865,12 +881,12 @@ class LSTM(Preprocess):
     def train_model(self, max_epochs=None):
 
         if max_epochs==None:
-            max_epochs = self.model_options['max_epochs']
+            max_epochs = self._model_options['max_epochs']
         else:
-            self.model_options['max_epochs'] = max_epochs
+            self._model_options['max_epochs'] = max_epochs
 
-        kf_valid = self.get_minibatches_idx( len(self.valid_set[0]), self.model_options['valid_batch_size'])
-        kf_test  = self.get_minibatches_idx( len(self.test_set[0]) , self.model_options['valid_batch_size'])
+        kf_valid = self.get_minibatches_idx( len(self.valid_set[0]), self._model_options['valid_batch_size'])
+        kf_test  = self.get_minibatches_idx( len(self.test_set[0]) , self._model_options['valid_batch_size'])
 
         print "%d train examples" % len(self.train_set[0])
         print "%d valid examples" % len(self.valid_set[0])
@@ -879,10 +895,10 @@ class LSTM(Preprocess):
         best_p = None
         bad_count = 0
 
-        if self.model_options['validFreq'] == -1:
-            self.model_options['validFreq'] = len(self.train_set[0]) / self.model_options['batch_size']
-        if self.model_options['saveFreq'] == -1:
-            self.model_options['saveFreq'] = len(self.train_set[0]) / self.model_options['batch_size']
+        if self._model_options['validFreq'] == -1:
+            self._model_options['validFreq'] = len(self.train_set[0]) / self._model_options['batch_size']
+        if self._model_options['saveFreq'] == -1:
+            self._model_options['saveFreq'] = len(self.train_set[0]) / self._model_options['batch_size']
 
         uidx = 0  # the number of update done
         estop = False  # early stop
@@ -892,7 +908,7 @@ class LSTM(Preprocess):
                 n_samples = 0
 
                 # Get new shuffled index for the training set.
-                kf = self.get_minibatches_idx(len(self.train_set[0]), self.model_options['batch_size'], shuffle=True)
+                kf = self.get_minibatches_idx(len(self.train_set[0]), self._model_options['batch_size'], shuffle=True)
 
                 for _, train_index in kf:
                     uidx += 1
@@ -909,27 +925,27 @@ class LSTM(Preprocess):
                     n_samples += x.shape[1]
 
                     cost = self.f_grad_shared(x, mask, y)
-                    self.f_update(self.model_options['lrate'])
+                    self.f_update(self._model_options['lrate'])
 
                     if np.isnan(cost) or np.isinf(cost):
                         print 'NaN detected'
                         return 1., 1., 1.
 
-                    if np.mod(uidx, self.model_options['dispFreq']) == 0:
+                    if np.mod(uidx, self._model_options['dispFreq']) == 0:
                         print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
 
-                    if self.model_options['saveto'] and np.mod(uidx, self.model_options['saveFreq']) == 0:
+                    if self._model_options['saveto'] and np.mod(uidx, self._model_options['saveFreq']) == 0:
                         print 'Saving...',
 
                         if best_p is not None:
                             params = best_p
                         else:
                             params = self.unzip(self._tparams)
-                        np.savez(self.model_options['saveto'], history_errs=history_errs, **params)
-                        pkl.dump(self.model_options, open('%s.pkl' % self.model_options['saveto'], 'wb'), -1)
+                        np.savez(self._model_options['saveto'], history_errs=history_errs, **params)
+                        pkl.dump(self._model_options, open('%s.pkl' % self._model_options['saveto'], 'wb'), -1)
                         print 'Done'
 
-                    if np.mod(uidx, self.model_options['validFreq']) == 0:
+                    if np.mod(uidx, self._model_options['validFreq']) == 0:
                         self._use_noise.set_value(0.)
                         train_err = self.pred_error( self.train_set, kf)
                         valid_err = self.pred_error( self.valid_set, kf_valid)
@@ -947,10 +963,10 @@ class LSTM(Preprocess):
                                'Valid ', valid_err,
                                'Test ', test_err)
 
-                        if (len(history_errs) > self.model_options['patience'] and
-                            valid_err >= np.array(history_errs)[:-self.model_options['patience'],0].min()):
+                        if (len(history_errs) > self._model_options['patience'] and
+                            valid_err >= np.array(history_errs)[:-self._model_options['patience'],0].min()):
                             bad_counter += 1
-                            if bad_counter > self.model_options['patience']:
+                            if bad_counter > self._model_options['patience']:
                                 print 'Early Stop!'
                                 estop = True
                                 break
@@ -973,15 +989,15 @@ class LSTM(Preprocess):
             best_p = self.unzip(self._tparams)
 
         self._use_noise.set_value(0.)
-        kf_train_sorted = self.get_minibatches_idx(len(self.train_set[0]), self.model_options['batch_size'])
+        kf_train_sorted = self.get_minibatches_idx(len(self.train_set[0]), self._model_options['batch_size'])
         train_err = self.pred_error( self.train_set, kf_train_sorted)
         valid_err = self.pred_error( self.valid_set, kf_valid)
         test_err  = self.pred_error( self.test_set,  kf_test)
 
         print ('Train ', train_err, 'Valid ', valid_err, 'Test ', test_err)
 
-        if self.model_options['saveto']:
-            np.savez(self.model_options['saveto'], train_err=train_err,
+        if self._model_options['saveto']:
+            np.savez(self._model_options['saveto'], train_err=train_err,
                         valid_err=valid_err, test_err=test_err,
                         history_errs=history_errs, **best_p)
         print 'The code run for %d epochs, with %f sec/epochs' % (
@@ -1069,21 +1085,55 @@ class LSTM(Preprocess):
             pkl.dump(self.train_set,f,protocol=pkl.HIGHEST_PROTOCOL)
             f.close()
         # Return the state and delete the saved training data.
-        # ['f_pred', '_use_noise', '_text_col', 'f_cost', '_tparams', 'model_options', 'train_set', '_train_xx', '_layers', 'f_grad_shared', '_test_xx', 'optimizer', 'valid_set', '_data_file', 'f_pred_prob', '_test_size', '_train_size', 'f_update', '_params', 'test_set', 'f_grad', '_n_words', '_label_col', '_data_directory', '_DICTIONARY', '_model_options']
+        # ['f_pred', '_use_noise', '_text_col', 'f_cost', '_tparams', '_model_options', 'train_set', '_train_xx', '_layers', 'f_grad_shared', '_test_xx', 'optimizer', 'valid_set', '_data_file', 'f_pred_prob', '_test_size', '_train_size', 'f_update', '_params', 'test_set', 'f_grad', '_n_words', '_label_col', '_data_directory', '_DICTIONARY']
         # Can't save class instances or shared variables due to recursion limits
         state = dict(self.__dict__)
         for key in self._del_keys:
-            del state[key]
+            if key in state:
+                del state[key]
         return state
 
     def __setstate__(self, d, train_set_file=None):
 
-        self.__dict__.update(d)
+        state = self.__getstate__()
+
+        combined = self.zip_dicts(state,d)
+
+        self.__dict__.update(combined)
 
         if train_set_file!=None:
             f = file(train_set_file,'rb')
             d.train_set = pkl.load(f)
             f.close
+
+    def zip_dicts(self,d1,d2):
+        '''
+        Combining the dictionaries depends on order. Sub dictionaries should be
+        treated the same way.
+
+        :param d1:
+        :param d2:
+        :return:
+        '''
+        # Recursively combine the two dictionaries
+        combined = OrderedDict()
+        blah = np.array(d1.keys() + d2.keys())
+        dkeys = np.unique(blah)
+        for key in dkeys:
+            if (key in d1) and (key in d2):
+                if isinstance(d1[key],dict):
+                    if isinstance(d2[key],dict):
+                        combined[key] = self.zip_dicts(d1[key],d2[key])
+                    else:
+                        combined[key] = d1[key]
+                else:
+                    combined[key] = d1[key]
+            elif key in d1:
+                combined[key] = d1[key]
+            elif key in d2:
+                combined[key] = d2[key]
+
+        return combined
 
 # if __name__ == '__main__':
 #     filename = sys.argv[0]

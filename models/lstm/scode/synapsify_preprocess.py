@@ -74,20 +74,39 @@ class Preprocess():
         sentences = []
         start = time.time()
         count = 0
+<<<<<<< HEAD
         if self._model_options['correct_spelling']:
             for sentence in toks:
                 new_sentence = []
                 words = sentence.strip().lower().split()
+=======
+
+        for sentence in toks:
+            words = sentence.strip().lower().split()
+
+            if self._model_options['correct_spelling']:
+                new_sentence = []
+>>>>>>> origin/master
                 for w in words:
                     w = sh.correct_spelling(w)
                     new_sentence += [w]
                 sentences += [new_sentence]
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
                 print '\n'
                 count +=1
                 print count/float(len(toks))
                 print (time.time()-start)/60
+<<<<<<< HEAD
         else:
             sentences = toks
+=======
+            else:
+                sentences += [words]
+
+>>>>>>> origin/master
         print 'Done'
 
         return sentences
@@ -157,11 +176,12 @@ class Preprocess():
 
         sentences = self._tokenize(sentences)
 
+        unk = 1
         seqs = [None] * len(sentences)
         for idx, words in enumerate(sentences):
             # seqs[idx] = self._format_sentence_freq(ss)
             # words = ss.strip().lower().split()
-            seqs[idx] = [self._DICTIONARY[w] if w in self._DICTIONARY else 1 for w in words]
+            seqs[idx] = [self._DICTIONARY[w] if w in self._DICTIONARY else unk for w in words]
 
         return seqs
 
