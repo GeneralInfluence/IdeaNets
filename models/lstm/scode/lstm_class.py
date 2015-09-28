@@ -440,7 +440,7 @@ class LSTM(Preprocess):
         ### RUofan add code here
         layer_id = 'layer_' + str(layer_num)
         params = OrderedDict()
-        params = self.param_init_lstm(self.model_options, params)
+        params = self.param_init_lstm(self._model_options, params)
         self.lstm_tparams(params, layer_id)
         #self.print_params()
 
@@ -464,10 +464,10 @@ class LSTM(Preprocess):
             preact += self._tparams[layer_id]['lstm_b']
             # preact += tparams[self._p(prefix, 'b')]
 
-            i = tensor.nnet.sigmoid(_slice(preact, 0, self.model_options['dim_proj']))
-            f = tensor.nnet.sigmoid(_slice(preact, 1, self.model_options['dim_proj']))
-            o = tensor.nnet.sigmoid(_slice(preact, 2, self.model_options['dim_proj']))
-            c = tensor.tanh(_slice(preact, 3, self.model_options['dim_proj']))
+            i = tensor.nnet.sigmoid(_slice(preact, 0, self._model_options['dim_proj']))
+            f = tensor.nnet.sigmoid(_slice(preact, 1, self._model_options['dim_proj']))
+            o = tensor.nnet.sigmoid(_slice(preact, 2, self._model_options['dim_proj']))
+            c = tensor.tanh(_slice(preact, 3, self._model_options['dim_proj']))
 
             c = f * c_ + i * c
             c = m_[:, None] * c + (1. - m_)[:, None] * c_
@@ -482,7 +482,7 @@ class LSTM(Preprocess):
                        self._tparams[layer_id]['lstm_b'])
                        # tparams[self._p(prefix, 'b')])
 
-        dim_proj = self.model_options['dim_proj']
+        dim_proj = self._model_options['dim_proj']
         rval, updates = theano.scan(_step,
                                     sequences=[mask, state_below],
                                     outputs_info=[tensor.alloc(self.numpy_floatX(0.),
@@ -525,13 +525,13 @@ class LSTM(Preprocess):
         ### Ruofan changed this code.
         emb = self._tparams['embedding']['Wemb'][x.flatten()].reshape([n_timesteps,
                                                             n_samples,
-                                                            self.model_options['dim_proj']])    ### Word Embedding Matrix.
+                                                            self._model_options['dim_proj']])    ### Word Embedding Matrix.
         #emb = self._tparams['layer_'+str(L)]['Wemb'][x.flatten()].reshape([n_timesteps,
         #                                                n_samples,
         #                                                self.model_options['dim_proj']])    ### Word Embedding Matrix.
         hidden_input = emb  ### Input for Hidden Layers.
 
-        for L in range(int(self.model_options['num_hidden_layers'])):
+        for L in range(int(self._model_options['num_hidden_layers'])):
             # proj = self.get_layer(options['encoder'])[1](tparams, emb, options,
             proj = self.lstm_layer( hidden_input, mask=mask, layer_num=L+1)
             hidden_input = proj ### The current hidden layer is the input for the next hidden layer.
@@ -795,10 +795,36 @@ class LSTM(Preprocess):
             preds = self.f_pred(x, mask)
             # preds = self._classify_one(data, valid_index)
             targets = np.array(data[1])[valid_index]
+
+            #''' Do F1 changes here. '''
+            #from sklearn.metrics import f1_score
+            #f1 = sklearn.metrics.f1_score(targets, preds, average='macro')
+            #print "f1 score is: ", f1
+            #self.calc_f1_score()
+            #valid_err = sklearn.metrics.f1_score(y_true, y_pred, labels=None, pos_label=1, average='binary', sample_weight=None)
+
             valid_err += (preds == targets).sum()
         valid_err = 1. - self.numpy_floatX(valid_err) / len(data[0])
 
         return valid_err
+
+    # Compute F1 score
+    def compute_f1_score(self, data, iterator):   ### Only compute the f1-score of validation dataset.
+        """
+        Compute the f1 score
+        """
+        for _, valid_index in iterator:
+            x, mask, y = self._prepare_data([data[0][t] for t in valid_index],
+                                      np.array(data[1])[valid_index],
+                                      maxlen=None)
+            preds = self.f_pred(x, mask)
+            targets = np.array(data[1])[valid_index]
+
+            """ Do F1 changes here. """
+            from sklearn.metrics import f1_score
+            f1 = f1_score(targets, preds, average='macro')
+            print "f1 score is: ", f1
+
 
     def calc_accuracy_baseline(self,num_classes,agreement=0.8):
         '''
@@ -933,6 +959,8 @@ class LSTM(Preprocess):
 
                     if np.mod(uidx, self._model_options['dispFreq']) == 0:
                         print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
+                        ### Ruofan adds code here:
+                        ### self.compute_f1_score( self.valid_set, kf)
 
                     if self._model_options['saveto'] and np.mod(uidx, self._model_options['saveFreq']) == 0:
                         print 'Saving...',
@@ -970,6 +998,11 @@ class LSTM(Preprocess):
                                 print 'Early Stop!'
                                 estop = True
                                 break
+
+                ### Ruofan adds code here:
+                #kf_valid_f1 = self.get_minibatches_idx(len(self.valid_set[0]), len(self.valid_set[0]), shuffle=True)
+                #self.compute_f1_score(self.valid_set, kf_valid_f1)
+                self.compute_f1_score(self.valid_set, kf_valid)
 
                 #self.print_params()
                 self.save_matrix(eidx)
