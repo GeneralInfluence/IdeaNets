@@ -382,6 +382,7 @@ class LSTM(Preprocess):
 
         f_pred_prob = theano.function([x, mask], pred, name='f_pred_prob')
         f_pred      = theano.function([x, mask], pred.argmax(axis=1), name='f_pred')
+        f_ruofan    = theano.function([x, mask], pred.ruofan(axis=1), name='f_pred')
 
         cost = -tensor.log(pred[tensor.arange(n_samples), y] + 1e-8).mean()
 
