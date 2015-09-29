@@ -89,6 +89,7 @@ class Preprocess():
                 count +=1
                 print count/float(len(toks))
                 print (time.time()-start)/60
+
             else:
                 sentences += [words]
 
@@ -123,8 +124,8 @@ class Preprocess():
 
         print np.sum(counts), ' total words ', len(keys), ' unique words'
 
-        prctile = np.percentile(np.array(wordcount),90)
-        xx = np.where(np.array(wordcount)>=prctile)[0]
+        # prctile = np.percentile(np.array(wordcount),90)
+        # xx = np.where(np.array(wordcount)>=prctile)[0]
 
         ### Ruofan added codes here.
         # num_words = len(keys)

@@ -26,6 +26,7 @@ class LSTM(Preprocess):
     def __init__(self, Object=None, params=None):
 
         default_params = {
+            "num_hidden_layers":2,
             "dim_proj":128,
             "patience":10,
             "max_epochs":5000,
@@ -52,9 +53,9 @@ class LSTM(Preprocess):
             "train_max":0.5,
             "train_size":1524,
             "test_size":1533,
-            #"data_directory":"../data/test",
-            "data_directory":"/home/ying/Deep_Learning/Synapsify_data",
+            "data_directory":"../../../data/",
             "data_file":"Annotated_Comments_for_Always_Discreet_1.csv",
+            #"data_file":"Annotated_Comments_for_Crest White Strips 1.csv",
             "raw_rows":None,
             "class_type":"Sentiment",
             "correct_spelling":False,
@@ -125,9 +126,7 @@ class LSTM(Preprocess):
     def _get_dataset_file(self, dataset, default_dataset, origin):
         '''Look for it as if it was a full path, if not, try local file,
         if not try in the data directory.
-
         Download dataset if it is not present
-
         '''
         data_dir, data_file = os.path.split(dataset)
         if data_dir == "" and not os.path.isfile(dataset):
@@ -184,7 +183,6 @@ class LSTM(Preprocess):
 
 #===================================================================================
 #===================================================================================
-
     # @classmethod
     def _init_params(self, options):
         """
@@ -194,9 +192,8 @@ class LSTM(Preprocess):
         # embedding
         randn = np.random.rand(options['n_words'], options['dim_proj'])
         params['Wemb'] = (0.01 * randn).astype(config.floatX) #.astype('float32')
-        params = self.get_layer(options['encoder'])[0](options,
-                                                  params,
-                                                  prefix=options['encoder'])
+        #params = self.param_init_lstm(options,  params) #,# prefix=options['encoder'])  ### Ruoafan made changes here.
+
         # classifier
         params['U'] = 0.01 * np.random.randn(options['dim_proj'],
                                              options['ydim']).astype(config.floatX) #.astype('float32')
@@ -207,10 +204,23 @@ class LSTM(Preprocess):
     @staticmethod
     def _init_tparams( params):
         tparams = OrderedDict()
+        tparams['embedding'] = {}
+        tparams['output'] = {}
+        for kk, pp in params.iteritems():
+            if kk == 'Wemb':
+                tparams['embedding'][kk] = theano.shared(params[kk], name=kk)
+            else:
+                tparams['output'][kk] = theano.shared(params[kk], name=kk)
+        return tparams
+
+    '''
+    @staticmethod
+    def _init_tparams( params):
+        tparams = OrderedDict()
         for kk, pp in params.iteritems():
             tparams[kk] = theano.shared(params[kk], name=kk)
         return tparams
-
+    '''
 #=======================================================================================================================
 # MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING MODEL BUILDING
 #=======================================================================================================================
@@ -229,73 +239,9 @@ class LSTM(Preprocess):
         u, s, v = np.linalg.svd(W)
         return u.astype(config.floatX)
 
-    @staticmethod
-    def dropout_layer( state_before, use_noise, trng):
-        proj = tensor.switch(use_noise,
-                             (state_before *
-                              trng.binomial(state_before.shape,
-                                            p=0.5, n=1,
-                                            dtype=state_before.dtype)),
-                             state_before * 0.5)
-        return proj
-
     # @classmethod
-    def lstm_layer(self, tparams, state_below, options, prefix='lstm', mask=None):
-
-        nsteps = state_below.shape[0]
-        if state_below.ndim == 3:
-            n_samples = state_below.shape[1]
-        else:
-            n_samples = 1
-
-        assert mask is not None
-
-        def _slice(_x, n, dim):
-            if _x.ndim == 3:
-                return _x[:, :, n * dim:(n + 1) * dim]
-            return _x[:, n * dim:(n + 1) * dim]
-
-        def _step(m_, x_, h_, c_):
-            preact = tensor.dot(h_, tparams[self._p(prefix, 'U')])
-            preact += x_
-            preact += tparams[self._p(prefix, 'b')]
-
-            i = tensor.nnet.sigmoid(_slice(preact, 0, options['dim_proj']))
-            f = tensor.nnet.sigmoid(_slice(preact, 1, options['dim_proj']))
-            o = tensor.nnet.sigmoid(_slice(preact, 2, options['dim_proj']))
-            c = tensor.tanh(_slice(preact, 3, options['dim_proj']))
-
-            c = f * c_ + i * c
-            c = m_[:, None] * c + (1. - m_)[:, None] * c_
-
-            h = o * tensor.tanh(c)
-            h = m_[:, None] * h + (1. - m_)[:, None] * h_
-
-            return h, c
-
-        state_below = (tensor.dot(state_below, tparams[self._p(prefix, 'W')]) +
-                       tparams[self._p(prefix, 'b')])
-
-        dim_proj = options['dim_proj']
-        rval, updates = theano.scan(_step,
-                                    sequences=[mask, state_below],
-                                    outputs_info=[tensor.alloc(self.numpy_floatX(0.),
-                                                               n_samples,
-                                                               dim_proj),
-                                                  tensor.alloc(self.numpy_floatX(0.),
-                                                               n_samples,
-                                                               dim_proj)],
-                                    name=self._p(prefix, '_layers'),
-                                    n_steps=nsteps)
-        return rval[0]
-
-    # @classmethod
-    def get_layer(self, name):
-        fns = self._layers[name]
-        return fns
-
-    # @classmethod
-    def param_init_lstm(self, options, params, prefix='lstm'):
+    # def param_init_lstm(self, options, params, prefix='lstm'):    #Ruofan changed the code here.
+    def param_init_lstm(self, options, params):
         """
         Init the LSTM parameter:
         :see: init_params
@@ -305,14 +251,14 @@ class LSTM(Preprocess):
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj'])], axis=1)
-        params[self._p(prefix, 'W')] = W
+        params['lstm_W'] = W
         U = np.concatenate([self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj']),
                             self.ortho_weight(options['dim_proj'])], axis=1)
-        params[self._p(prefix, 'U')] = U
+        params['lstm_U'] = U
         b = np.zeros((4 * options['dim_proj'],))
-        params[self._p(prefix, 'b')] = b.astype(config.floatX)
+        params['lstm_b'] = b.astype(config.floatX)
 
         return params
 
@@ -350,13 +296,224 @@ class LSTM(Preprocess):
 
         return f_grad_shared, f_update
 
+    '''
     # @classmethod
-    def _build_model(self, tparams, options):
+    def adadelta(self, lr, tparams, grads, x, mask, y, cost):
+        zipped_grads = [theano.shared(p.get_value() * self.numpy_floatX(0.),
+                                      name='%s_grad' % k)
+                        for k, p in tparams.iteritems()]
+        running_up2 = [theano.shared(p.get_value() * self.numpy_floatX(0.),
+                                     name='%s_rup2' % k)
+                       for k, p in tparams.iteritems()]
+        running_grads2 = [theano.shared(p.get_value() * self.numpy_floatX(0.),
+                                        name='%s_rgrad2' % k)
+                          for k, p in tparams.iteritems()]
+        zgup = [(zg, g) for zg, g in zip(zipped_grads, grads)]
+        rg2up = [(rg2, 0.95 * rg2 + 0.05 * (g ** 2))
+                 for rg2, g in zip(running_grads2, grads)]
+        f_grad_shared = theano.function([x, mask, y], cost, updates=zgup + rg2up,
+                                        name='adadelta_f_grad_shared')
+        updir = [-tensor.sqrt(ru2 + 1e-6) / tensor.sqrt(rg2 + 1e-6) * zg
+                 for zg, ru2, rg2 in zip(zipped_grads,
+                                         running_up2,
+                                         running_grads2)]
+        ru2up = [(ru2, 0.95 * ru2 + 0.05 * (ud ** 2))
+                 for ru2, ud in zip(running_up2, updir)]
+        param_up = [(p, p + ud) for p, ud in zip(tparams.values(), updir)]
+        f_update = theano.function([lr], [], updates=ru2up + param_up,
+                                   on_unused_input='ignore',
+                                   name='adadelta_f_update')
+        return f_grad_shared, f_update
+    '''
 
+    ### SEAN'S NEW DROPOUT CODE FOR MULTI-LAYER LSTM
+    # This is currently designed for CPU only, for GPU implementation, see:
+    #   http://deeplearning.net/software/theano/tutorial/examples.html#other-implementations
+    def dropout_layer(self, state_before, use_noise, trng):
+
+        # I need this variable to be for one dimension and repeated for the others.
+
+        temp = state_before[:,:,None]
+
+        bi2D = theano.function([],
+                        trng.binomial(state_before.shape[0:2],
+                        p=0.5, n=1,
+                        dtype=state_before.dtype))
+
+        binomial3D = tensor.repeat( bi2D,state_before.shape[2],axis)
+
+        proj = tensor.switch(use_noise,
+                             (state_before *
+                              trng.binomial(state_before.shape,
+                                            p=0.5, n=1,
+                                            dtype=state_before.dtype)),
+                             state_before * 0.5)
+        return proj
+
+    '''
+    @staticmethod
+    def dropout_layer( state_before, use_noise, trng):
+        proj = tensor.switch(use_noise,
+                             (state_before *
+                              trng.binomial(state_before.shape,
+                                            p=0.5, n=1,
+                                            dtype=state_before.dtype)),
+                             state_before * 0.5)
+        return proj
+    '''
+
+    # @classmethod
+    # def lstm_layer(self, tparams, state_below, options, prefix='lstm', mask=None):
+    '''
+    def lstm_layer(self, state_below, mask=None):
         trng = RandomStreams(1234)
-
-        # Used for dropout.
+        # Used for dropout. DEFINED FOR EACH LAYER?
         use_noise = theano.shared(self.numpy_floatX(0.))
+        self._use_noise = use_noise
+        nsteps = state_below.shape[0]
+        if state_below.ndim == 3:
+            n_samples = state_below.shape[1]
+        else:
+            n_samples = 1
+        assert mask is not None
+        def _slice(_x, n, dim):
+            if _x.ndim == 3:
+                return _x[:, :, n * dim:(n + 1) * dim]
+            return _x[:, n * dim:(n + 1) * dim]
+        def _step(m_, x_, h_, c_):
+            # preact = tensor.dot(h_, tparams[self._p(prefix, 'U')])
+            preact = tensor.dot(h_, self._tparams['lstm_U'])
+            preact += x_
+            preact += self._tparams['lstm_b']
+            # preact += tparams[self._p(prefix, 'b')]
+            i = tensor.nnet.sigmoid(_slice(preact, 0, self.model_options['dim_proj']))
+            f = tensor.nnet.sigmoid(_slice(preact, 1, self.model_options['dim_proj']))
+            o = tensor.nnet.sigmoid(_slice(preact, 2, self.model_options['dim_proj']))
+            c = tensor.tanh(_slice(preact, 3, self.model_options['dim_proj']))
+            c = f * c_ + i * c
+            c = m_[:, None] * c + (1. - m_)[:, None] * c_
+            h = o * tensor.tanh(c)
+            h = m_[:, None] * h + (1. - m_)[:, None] * h_
+            return h, c
+        # state_below = (tensor.dot(state_below, tparams[self._p(prefix, 'W')]) +
+        state_below = (tensor.dot(state_below, self._tparams['lstm_W']) +
+                       self._tparams['lstm_b'])
+                       # tparams[self._p(prefix, 'b')])
+        dim_proj = self.model_options['dim_proj']
+        rval, updates = theano.scan(_step,
+                                    sequences=[mask, state_below],
+                                    outputs_info=[tensor.alloc(self.numpy_floatX(0.),
+                                                               n_samples,
+                                                               dim_proj),
+                                                  tensor.alloc(self.numpy_floatX(0.),
+                                                               n_samples,
+                                                               dim_proj)],
+                                    name='lstm_layers',
+                                    # name=self._p(prefix, '_layers'),
+                                    n_steps=nsteps)
+        proj = rval[0]
+        ### Average the results of the layer----------------------------------------
+        # if self.model_options['encoder'] == 'lstm':
+        proj = (proj * mask[:, :, None]).sum(axis=0)
+        proj = proj / mask.sum(axis=0)[:, None]
+        if self.model_options['use_dropout']:
+            proj = self.dropout_layer(proj, use_noise, trng)
+        return proj #rval[0]
+    '''
+
+    def lstm_tparams(self, params, layer_id):
+        self._tparams[layer_id] = {}
+        for kk, pp in params.iteritems():
+           self._tparams[layer_id][kk] = theano.shared(params[kk], name=kk)
+        return self
+
+    def lstm_layer(self, state_below, mask=None, layer_num=1):
+
+        # Used for dropout and shared between each hidden layer,
+        #   which allows the training functions to simply update use_noise
+        #       with use_noise.set_value(1.) and vice versa, and because
+        # use_noise is a shared variable and essentially acts like
+        # a light switch for the entire network.
+        use_noise = theano.shared(self.numpy_floatX(0.))
+        self._use_noise = use_noise # shared in Theano vs shared in this class's object
+
+        ### RUofan add code here
+        layer_id = 'layer_' + str(layer_num)
+        params = OrderedDict()
+        params = self.param_init_lstm(self._model_options, params)
+        self.lstm_tparams(params, layer_id)
+        #self.print_params()
+
+        nsteps = state_below.shape[0]
+        if state_below.ndim == 3:
+            n_samples = state_below.shape[1]
+        else:
+            n_samples = 1
+
+        assert mask is not None
+
+        def _slice(_x, n, dim):
+            if _x.ndim == 3:
+                return _x[:, :, n * dim:(n + 1) * dim]
+            return _x[:, n * dim:(n + 1) * dim]
+
+        def _step(m_, x_, h_, c_):
+            # preact = tensor.dot(h_, tparams[self._p(prefix, 'U')])
+            preact = tensor.dot(h_, self._tparams[layer_id]['lstm_U'])
+            preact += x_
+            preact += self._tparams[layer_id]['lstm_b']
+            # preact += tparams[self._p(prefix, 'b')]
+
+            i = tensor.nnet.sigmoid(_slice(preact, 0, self._model_options['dim_proj']))
+            f = tensor.nnet.sigmoid(_slice(preact, 1, self._model_options['dim_proj']))
+            o = tensor.nnet.sigmoid(_slice(preact, 2, self._model_options['dim_proj']))
+            c = tensor.tanh(_slice(preact, 3, self._model_options['dim_proj']))
+
+            c = f * c_ + i * c
+            c = m_[:, None] * c + (1. - m_)[:, None] * c_
+
+            h = o * tensor.tanh(c)
+            h = m_[:, None] * h + (1. - m_)[:, None] * h_
+
+            return h, c
+
+        # state_below = (tensor.dot(state_below, tparams[self._p(prefix, 'W')]) +
+        state_below = (tensor.dot(state_below, self._tparams[layer_id]['lstm_W']) +
+                       self._tparams[layer_id]['lstm_b'])
+                       # tparams[self._p(prefix, 'b')])
+
+        dim_proj = self._model_options['dim_proj']
+        rval, updates = theano.scan(_step,
+                                    sequences=[mask, state_below],
+                                    outputs_info=[tensor.alloc(self.numpy_floatX(0.),
+                                                               n_samples,
+                                                               dim_proj),
+                                                  tensor.alloc(self.numpy_floatX(0.),
+                                                               n_samples,
+                                                               dim_proj)],
+                                    name='lstm_layers',
+                                    # name=self._p(prefix, '_layers'),
+                                    n_steps=nsteps)
+
+        proj = rval[0]
+        ### Average the results of the layer----------------------------------------
+        # if self.model_options['encoder'] == 'lstm':
+        #proj = (proj * mask[:, :, None]).sum(axis=0)
+        #proj = proj / mask.sum(axis=0)[:, None]
+
+        # if self.model_options['use_dropout']:
+        #     trng = RandomStreams(1234*layer_num)
+        #     proj = self.dropout_layer(proj, use_noise, trng)
+
+        return proj #rval[0]
+
+    # @classmethod
+    # def get_layer(self, name):
+    #     fns = self._layers[name]
+    #     return fns
+
+    # @classmethod
+    def _build_model(self):
 
         x = tensor.matrix('x', dtype='int64')
         mask = tensor.matrix('mask', dtype=config.floatX)
@@ -365,20 +522,32 @@ class LSTM(Preprocess):
         n_timesteps = x.shape[0]
         n_samples = x.shape[1]
 
-        emb = tparams['Wemb'][x.flatten()].reshape([n_timesteps,
-                                                    n_samples,
-                                                    options['dim_proj']])
-        proj = self.get_layer(options['encoder'])[1](tparams, emb, options,
-                                                prefix=options['encoder'],
-                                                mask=mask)
-        ### Average the results of the layer----------------------------------------
-        if options['encoder'] == 'lstm':
-            proj = (proj * mask[:, :, None]).sum(axis=0)
-            proj = proj / mask.sum(axis=0)[:, None]
-        if options['use_dropout']:
-            proj = self.dropout_layer(proj, use_noise, trng)
+        ### Ruofan changed this code.
+        emb = self._tparams['embedding']['Wemb'][x.flatten()].reshape([n_timesteps,
+                                                            n_samples,
+                                                            self._model_options['dim_proj']])    ### Word Embedding Matrix.
+        #emb = self._tparams['layer_'+str(L)]['Wemb'][x.flatten()].reshape([n_timesteps,
+        #                                                n_samples,
+        #                                                self.model_options['dim_proj']])    ### Word Embedding Matrix.
+        hidden_input = emb  ### Input for Hidden Layers.
 
-        pred = tensor.nnet.softmax(tensor.dot(proj, tparams['U'])+tparams['b'])
+        for L in range(int(self._model_options['num_hidden_layers'])):
+            # proj = self.get_layer(options['encoder'])[1](tparams, emb, options,
+            proj = self.lstm_layer( hidden_input, mask=mask, layer_num=L+1)
+            hidden_input = proj ### The current hidden layer is the input for the next hidden layer.
+
+        ### SEAN SPECULATION, NOT SURE IF THIS GOES HERE!!! WAS IN LSTM_LAYER!
+        proj = (proj * mask[:, :, None]).sum(axis=0)
+        proj = proj / mask.sum(axis=0)[:, None]
+
+        #if self.model_options['use_dropout']:
+        #    proj = self.dropout_layer(proj, use_noise, trng)
+        proj2 = proj
+
+        ### END HIDDEN LAYERS
+        ### START SOFTMAX NORMALIZATION
+
+        pred = tensor.nnet.softmax(tensor.dot(proj2, self._tparams['output']['U']) + self._tparams['output']['b'])
 
         f_pred_prob = theano.function([x, mask], pred, name='f_pred_prob')
         f_pred      = theano.function([x, mask], pred.argmax(axis=1), name='f_pred')
@@ -386,7 +555,7 @@ class LSTM(Preprocess):
 
         cost = -tensor.log(pred[tensor.arange(n_samples), y] + 1e-8).mean()
 
-        return use_noise, x, mask, y, f_pred_prob, f_pred, cost
+        return x, mask, y, f_pred_prob, f_pred, cost
 
     # @classmethod
     def build_model(self):
@@ -410,8 +579,7 @@ class LSTM(Preprocess):
 
             optimizer = self.adadelta
 
-            # use_noise is for dropout
-            (use_noise, x, mask, y, self.f_pred_prob, self.f_pred, cost) = self._build_model(self._tparams, self._model_options)
+            (x, mask, y, self.f_pred_prob, self.f_pred, cost) = self._build_model()
 
             print 'Done. Setting up Optimization Function'
 
@@ -424,11 +592,26 @@ class LSTM(Preprocess):
                 cost += weight_decay
                 print "cost updated with a weight decay"
 
-            grads = tensor.grad(cost, wrt=self._tparams.values())
+            ### Ruofan add codes here.
+            param_val = []
+            temp_dict = OrderedDict()
+            count = 0
+            for k, p in self._tparams.iteritems():
+                for k1, p1 in p.iteritems():
+                    param_val.append(p[k1])
+                    temp_dict[str(count)] = p[k1]
+                    count += 1
+
+
+            print param_val
+            print temp_dict
+            #grads = tensor.grad(cost, wrt=self._tparams.values())
+            grads = tensor.grad(cost, wrt=param_val)
             print "gradients set up"
 
             lr = tensor.scalar(name='lr')
-            self.f_grad_shared, self.f_update = optimizer(lr, self._tparams, grads, x, mask, y, cost)
+            #f_grad_shared, self.f_update = optimizer(lr, self._tparams, grads, x, mask, y, cost)
+            self.f_grad_shared, self.f_update = optimizer(lr, temp_dict, grads, x, mask, y, cost)
             print "Optimization functions created"
 
             self.f_cost = theano.function([x, mask, y], cost, name='f_cost')
@@ -439,7 +622,6 @@ class LSTM(Preprocess):
             print "We do not have any other optimizers, stop being difficult and choose one we already have ready."
 
         # Save variables for us in training section
-        self._use_noise = use_noise
         print 'Model Ready!'
         return self
 
@@ -474,13 +656,10 @@ class LSTM(Preprocess):
     @staticmethod
     def _prepare_data(seqs, labels, maxlen=None):	# maxlen means how many
         """Create the matrices from the datasets.
-
         This pad each sequence to the same length: the length of the
         longuest sequence or maxlen.
-
         if maxlen is set, we will cut all sequence to this maximum
         lenght.
-
         """
         # x: a list of sentences
         lengths = [len(s) for s in seqs]	### A list contains each of the comments length
@@ -512,6 +691,7 @@ class LSTM(Preprocess):
 
         return x, x_mask, labels	### x is the matrix with dimension of maxlen * n_samples
 
+    '''
     @staticmethod
     def unzip(zipped):
         """
@@ -520,6 +700,19 @@ class LSTM(Preprocess):
         new_params = OrderedDict()
         for kk, vv in zipped.iteritems():
             new_params[kk] = vv.get_value()
+        return new_params
+    '''
+
+    @staticmethod
+    def unzip(zipped):
+        """
+        When we pickle the model. Needed for the GPU stuff.
+        """
+        new_params = OrderedDict()
+        for kk, vv in zipped.iteritems():
+            new_params[kk] = {}
+            for kk1, vv1 in vv.iteritems():
+                new_params[kk][kk1] = vv1.get_value()
         return new_params
 
     def _classify_seqs(self,words,unk=1):
@@ -590,7 +783,6 @@ class LSTM(Preprocess):
     def pred_error(self, data, iterator, verbose=False):
         """
         Compute the error of the prediction and the truth of the training data.
-
         :param data: The sentences and their class in a tuple
         :type data: list of 1x2 tuples
         :param_iterator: IDFK
@@ -607,6 +799,14 @@ class LSTM(Preprocess):
             preds_prob = self.f_pred_prob(x, mask)
 
             targets = np.array(data[1])[valid_index]
+
+            #''' Do F1 changes here. '''
+            #from sklearn.metrics import f1_score
+            #f1 = sklearn.metrics.f1_score(targets, preds, average='macro')
+            #print "f1 score is: ", f1
+            #self.calc_f1_score()
+            #valid_err = sklearn.metrics.f1_score(y_true, y_pred, labels=None, pos_label=1, average='binary', sample_weight=None)
+
             valid_err += (preds == targets).sum()
 
             for t,tgt in enumerate(targets):
@@ -616,6 +816,24 @@ class LSTM(Preprocess):
         prob_err = 1. - self.numpy_floatX(prob_err) / len(data[0])
 
         return valid_err, prob_err
+
+    # Compute F1 score
+    def compute_f1_score(self, data, iterator):   ### Only compute the f1-score of validation dataset.
+        """
+        Compute the f1 score
+        """
+        for _, valid_index in iterator:
+            x, mask, y = self._prepare_data([data[0][t] for t in valid_index],
+                                      np.array(data[1])[valid_index],
+                                      maxlen=None)
+            preds = self.f_pred(x, mask)
+            targets = np.array(data[1])[valid_index]
+
+            """ Do F1 changes here. """
+            from sklearn.metrics import f1_score
+            f1 = f1_score(targets, preds, average='macro')
+            print "f1 score is: ", f1
+
 
     def calc_accuracy_baseline(self,num_classes,agreement=0.8):
         '''
@@ -628,7 +846,6 @@ class LSTM(Preprocess):
             A.Do people really partition when they choose?
             B.Given two choices, is the agreement propbability constant, or is it a function of the two sets? (e.g. percent intersection)
         For this reason, the real answer must come by pulling data from questions posed and comparing to the expectation.
-
         :param num_classes: The number of classes people are asked to agree upon
         :type num_classes: 1x1 integer
         :param agreement: baseline expectation for each agreement partition.
@@ -677,12 +894,23 @@ class LSTM(Preprocess):
     #     FB = B2*TP / (B2*TP + B*B*FN + FP)
 
     # @classmethod
+    '''
     def zipp(self, params):
         """
         When we reload the model. Needed for the GPU stuff.
         """
         for kk, vv in params.iteritems():
             self._tparams[kk].set_value(vv)
+    '''
+
+    @classmethod
+    def zipp(self, params):
+        """
+        When we reload the model. Needed for the GPU stuff.
+        """
+        for kk, vv in params.iteritems():
+            for kk1, vv1 in vv.iteritems():
+                self._tparams[kk][kk1].set_value(vv1)
 
     # @classmethod
     def train_model(self, max_epochs=None):
@@ -723,7 +951,7 @@ class LSTM(Preprocess):
 
                     # Select the random examples for this minibatch
                     y = [self.train_set[1][t] for t in train_index]
-                    x = [self.train_set[0][t]for t in train_index]
+                    x = [self.train_set[0][t] for t in train_index]
 
                     # Get the data in numpy.ndarray format
                     # This swap the axis!
@@ -740,6 +968,8 @@ class LSTM(Preprocess):
 
                     if np.mod(uidx, self._model_options['dispFreq']) == 0:
                         print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
+                        ### Ruofan adds code here:
+                        ### self.compute_f1_score( self.valid_set, kf)
 
                     if self._model_options['saveto'] and np.mod(uidx, self._model_options['saveFreq']) == 0:
                         print 'Saving...',
@@ -777,6 +1007,11 @@ class LSTM(Preprocess):
                                 print 'Early Stop!'
                                 estop = True
                                 break
+
+                ### Ruofan adds code here:
+                #kf_valid_f1 = self.get_minibatches_idx(len(self.valid_set[0]), len(self.valid_set[0]), shuffle=True)
+                #self.compute_f1_score(self.valid_set, kf_valid_f1)
+                self.compute_f1_score(self.valid_set, kf_valid)
 
                 #self.print_params()
                 self.save_matrix(eidx)
@@ -824,8 +1059,9 @@ class LSTM(Preprocess):
         return self
 
     def print_params(self):
-        for item in self._tparams:
-            print  item, self._tparams[item].eval()
+        for k, item in self._tparams.iteritems():
+            for k1, item1 in item.iteritems():
+                print  item, item1, self._tparams[item][item1].eval()
 
     def save_matrix(self, eidx):
         ### filename: ".npz" file name
