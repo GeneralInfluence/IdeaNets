@@ -813,6 +813,7 @@ class LSTM(Preprocess):
                 prob_err += preds_prob[t][tgt]
 
         valid_err = 1. - self.numpy_floatX(valid_err) / len(data[0])
+<<<<<<< HEAD
         prob_err = 1. - self.numpy_floatX(prob_err) / len(data[0])
 
         return valid_err, prob_err
@@ -833,6 +834,14 @@ class LSTM(Preprocess):
             from sklearn.metrics import f1_score
             f1 = f1_score(targets, preds, average='macro')
             print "f1 score is: ", f1
+||||||| merged common ancestors
+=======
+        prob_err = 1. - self.numpy_floatX(prob_err) / len(data[0])
+
+        return valid_err, prob_err
+
+    # def hard_accuracy(self,truth,predicted):
+>>>>>>> 962e58066907f83516e455a74478f1ab32e814ed
 
 
     def calc_accuracy_baseline(self,num_classes,agreement=0.8):
