@@ -551,7 +551,6 @@ class LSTM(Preprocess):
 
         f_pred_prob = theano.function([x, mask], pred, name='f_pred_prob')
         f_pred      = theano.function([x, mask], pred.argmax(axis=1), name='f_pred')
-        f_ruofan    = theano.function([x, mask], pred.ruofan(axis=1), name='f_pred')
 
         cost = -tensor.log(pred[tensor.arange(n_samples), y] + 1e-8).mean()
 
@@ -788,7 +787,6 @@ class LSTM(Preprocess):
         :param_iterator: IDFK
         :rtype:
         """
-
         valid_err = 0
         prob_err = 0
         for _, valid_index in iterator:
@@ -799,49 +797,17 @@ class LSTM(Preprocess):
             preds_prob = self.f_pred_prob(x, mask)
 
             targets = np.array(data[1])[valid_index]
-
-            #''' Do F1 changes here. '''
-            #from sklearn.metrics import f1_score
-            #f1 = sklearn.metrics.f1_score(targets, preds, average='macro')
-            #print "f1 score is: ", f1
-            #self.calc_f1_score()
-            #valid_err = sklearn.metrics.f1_score(y_true, y_pred, labels=None, pos_label=1, average='binary', sample_weight=None)
-
             valid_err += (preds == targets).sum()
 
             for t,tgt in enumerate(targets):
                 prob_err += preds_prob[t][tgt]
 
         valid_err = 1. - self.numpy_floatX(valid_err) / len(data[0])
-<<<<<<< HEAD
-        prob_err = 1. - self.numpy_floatX(prob_err) / len(data[0])
-
-        return valid_err, prob_err
-
-    # Compute F1 score
-    def compute_f1_score(self, data, iterator):   ### Only compute the f1-score of validation dataset.
-        """
-        Compute the f1 score
-        """
-        for _, valid_index in iterator:
-            x, mask, y = self._prepare_data([data[0][t] for t in valid_index],
-                                      np.array(data[1])[valid_index],
-                                      maxlen=None)
-            preds = self.f_pred(x, mask)
-            targets = np.array(data[1])[valid_index]
-
-            """ Do F1 changes here. """
-            from sklearn.metrics import f1_score
-            f1 = f1_score(targets, preds, average='macro')
-            print "f1 score is: ", f1
-||||||| merged common ancestors
-=======
         prob_err = 1. - self.numpy_floatX(prob_err) / len(data[0])
 
         return valid_err, prob_err
 
     # def hard_accuracy(self,truth,predicted):
->>>>>>> 962e58066907f83516e455a74478f1ab32e814ed
 
 
     def calc_accuracy_baseline(self,num_classes,agreement=0.8):
@@ -977,8 +943,6 @@ class LSTM(Preprocess):
 
                     if np.mod(uidx, self._model_options['dispFreq']) == 0:
                         print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost
-                        ### Ruofan adds code here:
-                        ### self.compute_f1_score( self.valid_set, kf)
 
                     if self._model_options['saveto'] and np.mod(uidx, self._model_options['saveFreq']) == 0:
                         print 'Saving...',
@@ -1000,7 +964,7 @@ class LSTM(Preprocess):
                         history_errs.append([valid_err, test_err])
 
                         if (uidx == 0 or
-                            valid_err <= np.array(history_errs)[:,0].min()):
+                            valid_err[0] <= np.array(history_errs)[:,0].min()):
 
                             best_p = self.unzip(self._tparams)
                             bad_counter = 0
@@ -1010,17 +974,12 @@ class LSTM(Preprocess):
                                'Test ', test_err)
 
                         if (len(history_errs) > self._model_options['patience'] and
-                            valid_err >= np.array(history_errs)[:-self._model_options['patience'],0].min()):
+                            valid_err[0] >= np.array(history_errs)[:-self._model_options['patience'],0].min()): ### Ruofan made changes here.
                             bad_counter += 1
                             if bad_counter > self._model_options['patience']:
                                 print 'Early Stop!'
                                 estop = True
                                 break
-
-                ### Ruofan adds code here:
-                #kf_valid_f1 = self.get_minibatches_idx(len(self.valid_set[0]), len(self.valid_set[0]), shuffle=True)
-                #self.compute_f1_score(self.valid_set, kf_valid_f1)
-                self.compute_f1_score(self.valid_set, kf_valid)
 
                 #self.print_params()
                 self.save_matrix(eidx)

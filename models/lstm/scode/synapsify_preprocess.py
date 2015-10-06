@@ -72,8 +72,8 @@ class Preprocess():
         tok_text, _ = tokenizer.communicate(text)
         toks = tok_text.split('\n')[:-1]
         sentences = []
-        start = time.time()
-        count = 0
+        #start = time.time()
+        #count = 0
 
         for sentence in toks:
             words = sentence.strip().lower().split()
@@ -85,10 +85,10 @@ class Preprocess():
                     new_sentence += [w]
                 sentences += [new_sentence]
 
-                print '\n'
-                count +=1
-                print count/float(len(toks))
-                print (time.time()-start)/60
+                #print '\n'
+                #count +=1
+                #print count/float(len(toks))
+                #print (time.time()-start)/60
 
             else:
                 sentences += [words]
